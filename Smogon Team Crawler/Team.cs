@@ -23,10 +23,10 @@ namespace Smogon_Team_Crawler
             this.PostDate = postDate;
             this.URL = url;
 
-            calculateKoeffizient();
+            CalculateKoeffizient();
         }
 
-        private void calculateKoeffizient()
+        private void CalculateKoeffizient()
         {
             this.Koeffizient = this.Likes * 
                                 (1.0 / 

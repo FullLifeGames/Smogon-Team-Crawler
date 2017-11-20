@@ -5,12 +5,12 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Smogon_Team_Crawler
 {
 
-    // TODO pokepast.es implementieren
     // TODO Aus RMT Posts die Teams lesen
 
     class Program
@@ -358,7 +358,7 @@ namespace Smogon_Team_Crawler
                         else if (likeStarted)
                         {
                             likeStarted = false;
-                            int likes = countOccurences(line, "</a>");
+                            int likes = CountOccurences(line, "</a>");
                             if (line.Contains(" others</a> like this."))
                             {
                                 likes--;
@@ -386,7 +386,7 @@ namespace Smogon_Team_Crawler
                         {
                             blockStarted = false;
                             blockText = blockText.Replace("<br />", "");
-                            if (isTeam(blockText))
+                            if (IsTeam(blockText))
                             {
                                 currentTeams.Add(blockText);
                             }
@@ -515,7 +515,7 @@ namespace Smogon_Team_Crawler
                             temp = temp.Replace("at ", "");
                             postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
                         }
-                        else if(line.Contains("<span class=\"DateTime\""))
+                        else if (line.Contains("<span class=\"DateTime\""))
                         {
                             string temp = line.Substring(line.IndexOf("<span class=\"DateTime\"") + "<span class=\"DateTime\"".Length);
                             temp = temp.Substring(temp.IndexOf("title=\"") + "title=\"".Length);
@@ -526,7 +526,7 @@ namespace Smogon_Team_Crawler
                         else if (likeStarted)
                         {
                             likeStarted = false;
-                            int likes = countOccurences(line, "</a>");
+                            int likes = CountOccurences(line, "</a>");
                             if (line.Contains(" others</a> like this."))
                             {
                                 likes--;
@@ -554,7 +554,7 @@ namespace Smogon_Team_Crawler
                         {
                             blockStarted = false;
                             blockText = blockText.Replace("<br />", "");
-                            if (isTeam(blockText))
+                            if (IsTeam(blockText))
                             {
                                 currentTeams.Add(blockText);
                             }
@@ -562,6 +562,32 @@ namespace Smogon_Team_Crawler
                         else if (blockStarted && (!line.Trim().StartsWith("<") || line.StartsWith("<br />")) && !line.Contains(" -- "))
                         {
                             blockText += line + "\n";
+                        }
+                        if (postStarted)
+                        {
+                            if (line.Contains("pokepast.es/"))
+                            {
+                                string pasteUrl = line.Substring(line.IndexOf("pokepast.es/"));
+                                if(pasteUrl.Contains(" ") || pasteUrl.Contains("\"") || pasteUrl.Contains("<"))
+                                {
+                                    int nearest = int.MaxValue;
+                                    int space = pasteUrl.IndexOf(" ");
+                                    int quotation = pasteUrl.IndexOf("\"");
+                                    int arrow = pasteUrl.IndexOf("<");
+
+                                    foreach (int pos in new int[] { space, quotation, arrow})
+                                    {
+                                        if (pos != -1 && pos < nearest)
+                                        {
+                                            nearest = pos;
+                                        }
+                                    }
+
+                                    pasteUrl = pasteUrl.Substring(0, nearest);
+                                }
+                                pasteUrl = "http://" + pasteUrl;
+                                currentTeams.Add(GetTeamFromPasteURL(pasteUrl));
+                            }
                         }
                     }
                 }
@@ -572,12 +598,41 @@ namespace Smogon_Team_Crawler
             }
         }
 
-        private static bool isTeam(string blockText)
+        private static string GetTeamFromPasteURL(string pasteUrl)
         {
-            return countOccurences(blockText, "EVs: ") >= 6 && countOccurences(blockText, "Nature") >= 6 && countOccurences(blockText, "Ability: ") >= 6;
+            string site = client.DownloadString(pasteUrl);
+
+            string team = "";
+
+            bool addLines = false;
+
+            foreach (string line in site.Split('\n'))
+            {
+                if (line.Contains("<pre>"))
+                {
+                    addLines = true;
+                }
+                else if (line.Contains("</pre>"))
+                {
+                    addLines = false;
+                }
+                if (addLines)
+                {
+                    team += line + "\n";
+                }
+            }
+
+            team = Regex.Replace(team, "<.*?>", String.Empty);
+
+            return team;
         }
 
-        private static int countOccurences(string haystack, string needle)
+        private static bool IsTeam(string blockText)
+        {
+            return CountOccurences(blockText, "EVs: ") >= 6 && CountOccurences(blockText, "Nature") >= 6 && CountOccurences(blockText, "Ability: ") >= 6;
+        }
+
+        private static int CountOccurences(string haystack, string needle)
         {
             return (haystack.Length - haystack.Replace(needle, "").Length) / needle.Length;
         }
