@@ -270,9 +270,10 @@ namespace Transform_Output_To_Importable
             if (mapping.ContainsKey(startword))
             {
                 string toAdd = "";
-                if (workingTier.Contains("doubles"))
+                string checkString = workingTier.Replace(" ", "");
+                if (checkString.Contains("doubles"))
                 {
-                    if (!workingTier.Contains("doublesou") && !workingTier.Contains("doublesuu") && !workingTier.Contains("doublesubers"))
+                    if (!checkString.Contains("doublesou") && !checkString.Contains("doublesuu") && !checkString.Contains("doublesubers"))
                     {
                         toAdd = "ou";
                     }
