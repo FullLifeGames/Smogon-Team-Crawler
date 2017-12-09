@@ -67,7 +67,7 @@ namespace Transform_Output_To_Importable
 
                     importable += showdownTier;
                     importable += tierDef + "/";
-                    importable += "Smogon Nr. " + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score";
+                    importable += "Smogon Nr. " + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy;
 
                     importable += " ===\n\n";
 
@@ -124,7 +124,7 @@ namespace Transform_Output_To_Importable
 
                     importable += showdownTier;
                     importable += tierDef + "/";
-                    importable += "RMT Nr. " + rmtTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score";
+                    importable += "RMT Nr. " + rmtTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy;
 
                     importable += " ===\n\n";
 

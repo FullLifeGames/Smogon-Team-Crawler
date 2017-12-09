@@ -12,16 +12,18 @@ namespace Smogon_Team_Crawler
         public int Likes;
         public DateTime PostDate;
         public string URL;
+        public string PostedBy;
 
         public double Koeffizient;
         private static double koeffScale = 5;
 
-        public Team(string teamString, int likes, DateTime postDate, string url)
+        public Team(string teamString, int likes, DateTime postDate, string url, string postedBy)
         {
             this.TeamString = teamString;
             this.Likes = likes;
             this.PostDate = postDate;
             this.URL = url;
+            this.PostedBy = postedBy;
 
             CalculateKoeffizient();
         }

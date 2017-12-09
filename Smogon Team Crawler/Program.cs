@@ -311,6 +311,8 @@ namespace Smogon_Team_Crawler
                     int postLikes = 0;
                     DateTime postDate = DateTime.Now;
 
+                    string postedBy = "";
+
                     bool likeStarted = false;
 
                     List<string> currentTeams = new List<string>();
@@ -324,6 +326,12 @@ namespace Smogon_Team_Crawler
                                 postStarted = true;
                                 postLink = line.Substring(line.IndexOf("\"") + 1);
                                 postLink = postLink.Substring(0, postLink.IndexOf("\""));
+                                if (line.Contains("data-author"))
+                                {
+                                    postedBy = line.Substring(line.IndexOf("data-author") + 5);
+                                    postedBy = postedBy.Substring(postedBy.IndexOf("\"") + 1);
+                                    postedBy = postedBy.Substring(0, postedBy.IndexOf("\""));
+                                }
                             }
                         }
                         else if (line.StartsWith("</li>"))
@@ -331,12 +339,13 @@ namespace Smogon_Team_Crawler
                             postStarted = false;
                             foreach (string team in currentTeams)
                             {
-                                Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink);
+                                Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
                                 rmtForTiers[prefix].Add(teamObject);
                             }
                             currentTeams.Clear();
                             postLikes = 0;
                             blockText = "";
+                            postedBy = "";
                             postDate = DateTime.Now;
                         }
                         else if (line.Contains("data-datestring=\""))
@@ -479,6 +488,8 @@ namespace Smogon_Team_Crawler
                     int postLikes = 0;
                     DateTime postDate = DateTime.Now;
 
+                    string postedBy = "";
+
                     bool likeStarted = false;
 
                     List<string> currentTeams = new List<string>();
@@ -492,6 +503,12 @@ namespace Smogon_Team_Crawler
                                 postStarted = true;
                                 postLink = line.Substring(line.IndexOf("\"") + 1);
                                 postLink = postLink.Substring(0, postLink.IndexOf("\""));
+                                if (line.Contains("data-author"))
+                                {
+                                    postedBy = line.Substring(line.IndexOf("data-author") + 5);
+                                    postedBy = postedBy.Substring(postedBy.IndexOf("\"") + 1);
+                                    postedBy = postedBy.Substring(0, postedBy.IndexOf("\""));
+                                }
                             }
                         }
                         else if (line.StartsWith("</li>"))
@@ -499,12 +516,13 @@ namespace Smogon_Team_Crawler
                             postStarted = false;
                             foreach (string team in currentTeams)
                             {
-                                Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink);
+                                Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
                                 teamsForTiers[tier].Add(teamObject);
                             }
                             currentTeams.Clear();
                             postLikes = 0;
                             blockText = "";
+                            postedBy = "";
                             postDate = DateTime.Now;
                         }
                         else if (line.Contains("data-datestring=\""))
