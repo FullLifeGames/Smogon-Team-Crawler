@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace Smogon_Team_Crawler
 {
 
-    // TODO Aus RMT Posts die Teams lesen
+    // TODO Read teams out of RMT posts
 
     class Program
     {
@@ -38,41 +38,37 @@ namespace Smogon_Team_Crawler
             {
                 if (scanStartOne)
                 {
-                    if (line.Contains("<h4"))
+                    if (line.Contains("class=\"subNodeLink subNodeLink--forum"))
                     {
                         string tierName = line.Substring(line.IndexOf(">") + 1);
-                        tierName = tierName.Substring(tierName.IndexOf(">") + 1);
                         tierName = tierName.Substring(0, tierName.IndexOf("<"));
-
-                        string tierUrl = line.Substring(line.IndexOf(">") + 1);
-                        tierUrl = tierUrl.Substring(tierUrl.IndexOf("\"") + 1);
+                        
+                        string tierUrl = line.Substring(line.IndexOf("\"") + 1);
                         tierUrl = tierUrl.Substring(0, tierUrl.IndexOf("\""));
-                        tierUrl = "http://www.smogon.com/forums/" + tierUrl;
+                        tierUrl = "http://www.smogon.com" + tierUrl;
 
                         tierToLinks.Add(tierName, tierUrl);
                         teamsForTiers.Add(tierName, new List<Team>());
                     }
-                    else if (line.StartsWith("<li"))
+                    else if (line.Contains("node-stats\""))
                     {
                         scanStartOne = false;
                     }
                 }
                 else if (scanStartTwo)
                 {
-                    if (line.Contains("<h4"))
+                    if (line.Contains("class=\"subNodeLink subNodeLink--forum"))
                     {
                         string urlName = line.Substring(line.IndexOf(">") + 1);
-                        urlName = urlName.Substring(urlName.IndexOf(">") + 1);
                         urlName = urlName.Substring(0, urlName.IndexOf("<"));
-
-                        string url = line.Substring(line.IndexOf(">") + 1);
-                        url = url.Substring(url.IndexOf("\"") + 1);
+                        
+                        string url = line.Substring(line.IndexOf("\"") + 1);
                         url = url.Substring(0, url.IndexOf("\""));
-                        url = "http://www.smogon.com/forums/" + url;
+                        url = "http://www.smogon.com" + url;
 
                         tierToRMTLinks.Add(urlName, url);
                     }
-                    else if (line.Contains("</ol>"))
+                    else if (line.Contains("node-stats\""))
                     {
                         scanStartTwo = false;
                         break;
@@ -94,11 +90,16 @@ namespace Smogon_Team_Crawler
                 {
                     string site = client.DownloadString(kv.Value);
                     int pages = 1;
-                    if (site.Contains("<span class=\"pageNavHeader\">"))
+                    if (site.Contains("<nav class=\"pageNavWrapper"))
                     {
-                        string temp = site.Substring(site.IndexOf("<span class=\"pageNavHeader\">") + "<span class=\"pageNavHeader\">".Length + 1);
+                        string temp = site;
+                        while (temp.Contains("pageNav-page"))
+                        {
+                            temp = temp.Substring(temp.IndexOf("pageNav-page") + "pageNav-page".Length);
+                        }
+                        temp = temp.Substring(temp.IndexOf(">") + 1);
+                        temp = temp.Substring(temp.IndexOf(">") + 1);
                         temp = temp.Substring(0, temp.IndexOf("<"));
-                        temp = temp.Substring(temp.IndexOf("of") + 3);
                         pages = int.Parse(temp);
                     }
 
@@ -108,18 +109,19 @@ namespace Smogon_Team_Crawler
 
                         foreach (string line in site.Split('\n'))
                         {
-                            if (line.Contains("data-previewUrl"))
+                            if (line.Contains("data-preview-url"))
                             {
-                                string tempInside = line.Substring(line.IndexOf("\"") + 1);
+                                string tempInside = line.Substring(line.IndexOf("data-preview-url") + "data-preview-url".Length);
+                                tempInside = tempInside.Substring(tempInside.IndexOf("\"") + 1);
                                 if (!tempInside.Contains("preview"))
                                 {
                                     continue;
                                 }
                                 tempInside = tempInside.Substring(0, tempInside.IndexOf("preview"));
-                                string url = "http://www.smogon.com/forums/" + tempInside;
+                                string url = "http://www.smogon.com" + tempInside;
                                 Console.WriteLine("Currently Scanning: " + url);
                                 int beforeCount = teamsForTiers[kv.Key].Count;
-                                analyzeTopic(url, kv.Key, teamsForTiers);
+                                AnalyzeTopic(url, kv.Key, teamsForTiers);
                                 int afterCount = teamsForTiers[kv.Key].Count;
                                 Console.WriteLine("Added " + (afterCount - beforeCount) + " Teams");
                                 Console.WriteLine();
@@ -135,11 +137,16 @@ namespace Smogon_Team_Crawler
                 {
                     string site = client.DownloadString(kv.Value);
                     int pages = 1;
-                    if (site.Contains("<span class=\"pageNavHeader\">"))
+                    if (site.Contains("<nav class=\"pageNavWrapper"))
                     {
-                        string temp = site.Substring(site.IndexOf("<span class=\"pageNavHeader\">") + "<span class=\"pageNavHeader\">".Length + 1);
+                        string temp = site;
+                        while (temp.Contains("pageNav-page"))
+                        {
+                            temp = temp.Substring(temp.IndexOf("pageNav-page") + "pageNav-page".Length);
+                        }
+                        temp = temp.Substring(temp.IndexOf(">") + 1);
+                        temp = temp.Substring(temp.IndexOf(">") + 1);
                         temp = temp.Substring(0, temp.IndexOf("<"));
-                        temp = temp.Substring(temp.IndexOf("of") + 3);
                         pages = int.Parse(temp);
                     }
 
@@ -151,28 +158,29 @@ namespace Smogon_Team_Crawler
 
                         foreach (string line in site.Split('\n'))
                         {
-                            if (line.Contains("<span class=\"prefix"))
+                            if (line.Contains("<span class=\"label"))
                             {
-                                prefix = line.Substring(line.IndexOf("<span class=\"prefix") + 1);
+                                prefix = line.Substring(line.IndexOf("<span class=\"label") + 1);
                                 prefix = prefix.Substring(prefix.IndexOf(">") + 1);
                                 prefix = prefix.Substring(0, prefix.IndexOf("<"));
                             }
-                            else if (line.Contains("data-previewUrl") && prefix != "")
+                            else if (line.Contains("data-preview-url") && prefix != "")
                             {
-                                string tempInside = line.Substring(line.IndexOf("\"") + 1);
+                                string tempInside = line.Substring(line.IndexOf("data-preview-url") + "data-preview-url".Length);
+                                tempInside = tempInside.Substring(tempInside.IndexOf("\"") + 1);
                                 if (!tempInside.Contains("preview"))
                                 {
                                     continue;
                                 }
                                 tempInside = tempInside.Substring(0, tempInside.IndexOf("preview"));
-                                string url = "http://www.smogon.com/forums/" + tempInside;
+                                string url = "http://www.smogon.com" + tempInside;
                                 Console.WriteLine("Currently Scanning: " + url);
                                 if (!rmtForTiers.ContainsKey(prefix))
                                 {
                                     rmtForTiers.Add(prefix, new List<Team>());
                                 }
                                 int beforeCount = rmtForTiers[prefix].Count;
-                                analyzeRMTTopic(url, prefix, rmtForTiers);
+                                AnalyzeRMTTopic(url, prefix, rmtForTiers);
                                 int afterCount = rmtForTiers[prefix].Count;
                                 Console.WriteLine("Added " + (afterCount - beforeCount) + " Teams");
                                 Console.WriteLine();
@@ -196,11 +204,11 @@ namespace Smogon_Team_Crawler
                     output += "Smogon (" + kv.Key + "):\n\n";
 
                     kv.Value.Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
-                    List<Team> teamList = removeDuplicates(kv.Value);
+                    List<Team> teamList = RemoveDuplicates(kv.Value);
 
                     foreach (Team team in teamList)
                     {
-                        string lineup = getTeamLineupString(team.TeamString);
+                        string lineup = GetTeamLineupString(team.TeamString);
                         string outputString = "";
                         List<string> lines = new List<string>();
                         foreach (string monData in team.TeamString.Split(new string[] { "\n\n" }, StringSplitOptions.None))
@@ -215,7 +223,7 @@ namespace Smogon_Team_Crawler
                             lines.Add(mon + monData.Substring(monData.IndexOf("\n")));
                         }
                         outputString = String.Join("\n\n", lines);
-                        output += lineup + ":\n" + team.URL + "\n" + team.PostDate.ToString() + "\n" + team.Likes + " Likes\n" + team.Koeffizient + " Calculated Value\n\n" + outputString + "\n\n\n";
+                        output += lineup + ":\n" + team.URL + "\n" + team.PostedBy + "\n" + team.PostDate.ToString() + "\n" + team.Likes + " Likes\n" + team.Koeffizient + " Calculated Value\n\n" + outputString + "\n\n\n";
                     }
 
                     output += "\n";
@@ -235,11 +243,11 @@ namespace Smogon_Team_Crawler
                     outputRMT += "Smogon (" + kv.Key + "):\n\n";
 
                     kv.Value.Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
-                    List<Team> teamList = removeDuplicates(kv.Value);
+                    List<Team> teamList = RemoveDuplicates(kv.Value);
 
                     foreach (Team team in teamList)
                     {
-                        string lineup = getTeamLineupString(team.TeamString);
+                        string lineup = GetTeamLineupString(team.TeamString);
                         string outputString = "";
                         List<string> lines = new List<string>();
                         foreach (string monData in team.TeamString.Split(new string[] { "\n\n" }, StringSplitOptions.None))
@@ -254,7 +262,7 @@ namespace Smogon_Team_Crawler
                             lines.Add(mon + monData.Substring(monData.IndexOf("\n")));
                         }
                         outputString = String.Join("\n\n", lines);
-                        outputRMT += lineup + ":\n" + team.URL + "\n" + team.PostDate.ToString() + "\n" + team.Likes + " Likes\n" + team.Koeffizient + " Calculated Value\n\n" + outputString + "\n\n\n";
+                        outputRMT += lineup + ":\n" + team.URL + "\n" + team.PostedBy + "\n" + team.PostDate.ToString() + "\n" + team.Likes + " Likes\n" + team.Koeffizient + " Calculated Value\n\n" + outputString + "\n\n\n";
                     }
 
                     outputRMT += "\n";
@@ -285,17 +293,22 @@ namespace Smogon_Team_Crawler
             }
         }
 
-        private static void analyzeRMTTopic(string url, string prefix, Dictionary<string, List<Team>> rmtForTiers)
+        private static void AnalyzeRMTTopic(string url, string prefix, Dictionary<string, List<Team>> rmtForTiers)
         {
             try
             {
                 string site = client.DownloadString(url);
                 int pages = 1;
-                if (site.Contains("<span class=\"pageNavHeader\">"))
+                if (site.Contains("<nav class=\"pageNavWrapper"))
                 {
-                    string temp = site.Substring(site.IndexOf("<span class=\"pageNavHeader\">") + "<span class=\"pageNavHeader\">".Length + 1);
+                    string temp = site;
+                    while (temp.Contains("pageNav-page"))
+                    {
+                        temp = temp.Substring(temp.IndexOf("pageNav-page") + "pageNav-page".Length);
+                    }
+                    temp = temp.Substring(temp.IndexOf(">") + 1);
+                    temp = temp.Substring(temp.IndexOf(">") + 1);
                     temp = temp.Substring(0, temp.IndexOf("<"));
-                    temp = temp.Substring(temp.IndexOf("of") + 3);
                     pages = int.Parse(temp);
                 }
 
@@ -315,95 +328,13 @@ namespace Smogon_Team_Crawler
 
                     bool likeStarted = false;
 
+                    bool timerHeader = false;
+
                     List<string> currentTeams = new List<string>();
 
                     foreach (string line in site.Split('\n'))
                     {
-                        if (!postStarted)
-                        {
-                            if (line.Contains("<li id=\"post-"))
-                            {
-                                postStarted = true;
-                                postLink = line.Substring(line.IndexOf("\"") + 1);
-                                postLink = postLink.Substring(0, postLink.IndexOf("\""));
-                                if (line.Contains("data-author"))
-                                {
-                                    postedBy = line.Substring(line.IndexOf("data-author") + 5);
-                                    postedBy = postedBy.Substring(postedBy.IndexOf("\"") + 1);
-                                    postedBy = postedBy.Substring(0, postedBy.IndexOf("\""));
-                                }
-                            }
-                        }
-                        else if (line.StartsWith("</li>"))
-                        {
-                            postStarted = false;
-                            foreach (string team in currentTeams)
-                            {
-                                Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
-                                rmtForTiers[prefix].Add(teamObject);
-                            }
-                            currentTeams.Clear();
-                            postLikes = 0;
-                            blockText = "";
-                            postedBy = "";
-                            postDate = DateTime.Now;
-                        }
-                        else if (line.Contains("data-datestring=\""))
-                        {
-                            string temp = line.Substring(line.IndexOf("data-datestring=\"") + "data-datestring=\"".Length);
-                            temp = temp.Substring(temp.IndexOf(">") + 1);
-                            temp = temp.Substring(0, temp.IndexOf("<"));
-                            temp = temp.Replace("at ", "");
-                            postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                        }
-                        else if (line.Contains("<span class=\"DateTime\""))
-                        {
-                            string temp = line.Substring(line.IndexOf("<span class=\"DateTime\"") + "<span class=\"DateTime\"".Length);
-                            temp = temp.Substring(temp.IndexOf("title=\"") + "title=\"".Length);
-                            temp = temp.Substring(0, temp.IndexOf("\""));
-                            temp = temp.Replace("at ", "");
-                            postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                        }
-                        else if (likeStarted)
-                        {
-                            likeStarted = false;
-                            int likes = CountOccurences(line, "</a>");
-                            if (line.Contains(" others</a> like this."))
-                            {
-                                likes--;
-                                string tempLikeString = line.Substring(line.IndexOf("class=\"OverlayTrigger\">") + "class=\"OverlayTrigger\">".Length);
-                                tempLikeString = tempLikeString.Substring(0, tempLikeString.IndexOf(" "));
-                                likes += int.Parse(tempLikeString);
-                            }
-                            postLikes = likes;
-                        }
-                        else if (line.Contains("<span class=\"LikeText\">"))
-                        {
-                            likeStarted = true;
-                        }
-                        else if (line.Contains("<div class=\"bbm_hide_noscript\"><blockquote>"))
-                        {
-                            blockStarted = true;
-                            blockText = "";
-                            string temp = line.Substring(line.IndexOf("<div class=\"bbm_hide_noscript\"><blockquote>") + "<div class=\"bbm_hide_noscript\"><blockquote>".Length).Trim();
-                            if (temp != "<br />" && temp != "")
-                            {
-                                blockText += temp + "\n";
-                            }
-                        }
-                        else if (blockStarted && line.Contains("</blockquote>"))
-                        {
-                            blockStarted = false;
-                            blockText = blockText.Replace("<br />", "");
-                            if (IsTeam(blockText))
-                            {
-                                currentTeams.Add(blockText);
-                            }
-                        }
-                        else if (blockStarted && (!line.Trim().StartsWith("<") || line.StartsWith("<br />")) && !line.Contains(" -- "))
-                        {
-                            blockText += line + "\n";
-                        }
+                        HandleLine(url, prefix, rmtForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line);
                     }
                 }
             }
@@ -413,7 +344,7 @@ namespace Smogon_Team_Crawler
             }
         }
 
-        private static List<Team> removeDuplicates(List<Team> value)
+        private static List<Team> RemoveDuplicates(List<Team> value)
         {
             List<Team> uniqueTeams = new List<Team>();
             foreach(Team team in value)
@@ -435,7 +366,7 @@ namespace Smogon_Team_Crawler
             return uniqueTeams;
         }
 
-        private static string getTeamLineupString(string teamString)
+        private static string GetTeamLineupString(string teamString)
         {
             List<string> mons = new List<string>();
             foreach (string monData in teamString.Split(new string[] { "\n\n" }, StringSplitOptions.None))
@@ -462,17 +393,22 @@ namespace Smogon_Team_Crawler
             return String.Join(", ", mons);
         }
 
-        private static void analyzeTopic(string url, string tier, Dictionary<string, List<Team>> teamsForTiers)
+        private static void AnalyzeTopic(string url, string tier, Dictionary<string, List<Team>> teamsForTiers)
         {
             try
             {
                 string site = client.DownloadString(url);
                 int pages = 1;
-                if (site.Contains("<span class=\"pageNavHeader\">"))
+                if (site.Contains("<nav class=\"pageNavWrapper"))
                 {
-                    string temp = site.Substring(site.IndexOf("<span class=\"pageNavHeader\">") + "<span class=\"pageNavHeader\">".Length + 1);
+                    string temp = site;
+                    while (temp.Contains("pageNav-page"))
+                    {
+                        temp = temp.Substring(temp.IndexOf("pageNav-page") + "pageNav-page".Length);
+                    }
+                    temp = temp.Substring(temp.IndexOf(">") + 1);
+                    temp = temp.Substring(temp.IndexOf(">") + 1);
                     temp = temp.Substring(0, temp.IndexOf("<"));
-                    temp = temp.Substring(temp.IndexOf("of") + 3);
                     pages = int.Parse(temp);
                 }
 
@@ -492,127 +428,152 @@ namespace Smogon_Team_Crawler
 
                     bool likeStarted = false;
 
+                    bool timerHeader = false;
+
                     List<string> currentTeams = new List<string>();
 
                     foreach (string line in site.Split('\n'))
                     {
-                        if (!postStarted)
-                        {
-                            if (line.Contains("<li id=\"post-"))
-                            {
-                                postStarted = true;
-                                postLink = line.Substring(line.IndexOf("\"") + 1);
-                                postLink = postLink.Substring(0, postLink.IndexOf("\""));
-                                if (line.Contains("data-author"))
-                                {
-                                    postedBy = line.Substring(line.IndexOf("data-author") + 5);
-                                    postedBy = postedBy.Substring(postedBy.IndexOf("\"") + 1);
-                                    postedBy = postedBy.Substring(0, postedBy.IndexOf("\""));
-                                }
-                            }
-                        }
-                        else if (line.StartsWith("</li>"))
-                        {
-                            postStarted = false;
-                            foreach (string team in currentTeams)
-                            {
-                                Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
-                                teamsForTiers[tier].Add(teamObject);
-                            }
-                            currentTeams.Clear();
-                            postLikes = 0;
-                            blockText = "";
-                            postedBy = "";
-                            postDate = DateTime.Now;
-                        }
-                        else if (line.Contains("data-datestring=\""))
-                        {
-                            string temp = line.Substring(line.IndexOf("data-datestring=\"") + "data-datestring=\"".Length);
-                            temp = temp.Substring(temp.IndexOf(">") + 1);
-                            temp = temp.Substring(0, temp.IndexOf("<"));
-                            temp = temp.Replace("at ", "");
-                            postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                        }
-                        else if (line.Contains("<span class=\"DateTime\""))
-                        {
-                            string temp = line.Substring(line.IndexOf("<span class=\"DateTime\"") + "<span class=\"DateTime\"".Length);
-                            temp = temp.Substring(temp.IndexOf("title=\"") + "title=\"".Length);
-                            temp = temp.Substring(0, temp.IndexOf("\""));
-                            temp = temp.Replace("at ", "");
-                            postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                        }
-                        else if (likeStarted)
-                        {
-                            likeStarted = false;
-                            int likes = CountOccurences(line, "</a>");
-                            if (line.Contains(" others</a> like this."))
-                            {
-                                likes--;
-                                string tempLikeString = line.Substring(line.IndexOf("class=\"OverlayTrigger\">") + "class=\"OverlayTrigger\">".Length);
-                                tempLikeString = tempLikeString.Substring(0, tempLikeString.IndexOf(" "));
-                                likes += int.Parse(tempLikeString);
-                            }
-                            postLikes = likes;
-                        }
-                        else if (line.Contains("<span class=\"LikeText\">"))
-                        {
-                            likeStarted = true;
-                        }
-                        else if (line.Contains("<div class=\"bbm_hide_noscript\"><blockquote>"))
-                        {
-                            blockStarted = true;
-                            blockText = "";
-                            string temp = line.Substring(line.IndexOf("<div class=\"bbm_hide_noscript\"><blockquote>") + "<div class=\"bbm_hide_noscript\"><blockquote>".Length).Trim();
-                            if (temp != "<br />" && temp != "")
-                            {
-                                blockText += temp + "\n";
-                            }
-                        }
-                        else if (blockStarted && line.Contains("</blockquote>"))
-                        {
-                            blockStarted = false;
-                            blockText = blockText.Replace("<br />", "");
-                            if (IsTeam(blockText))
-                            {
-                                currentTeams.Add(blockText);
-                            }
-                        }
-                        else if (blockStarted && (!line.Trim().StartsWith("<") || line.StartsWith("<br />")) && !line.Contains(" -- "))
-                        {
-                            blockText += line + "\n";
-                        }
-                        if (postStarted)
-                        {
-                            if (line.Contains("pokepast.es/"))
-                            {
-                                string pasteUrl = line.Substring(line.IndexOf("pokepast.es/"));
-                                if(pasteUrl.Contains(" ") || pasteUrl.Contains("\"") || pasteUrl.Contains("<"))
-                                {
-                                    int nearest = int.MaxValue;
-                                    int space = pasteUrl.IndexOf(" ");
-                                    int quotation = pasteUrl.IndexOf("\"");
-                                    int arrow = pasteUrl.IndexOf("<");
-
-                                    foreach (int pos in new int[] { space, quotation, arrow})
-                                    {
-                                        if (pos != -1 && pos < nearest)
-                                        {
-                                            nearest = pos;
-                                        }
-                                    }
-
-                                    pasteUrl = pasteUrl.Substring(0, nearest);
-                                }
-                                pasteUrl = "http://" + pasteUrl;
-                                currentTeams.Add(GetTeamFromPasteURL(pasteUrl));
-                            }
-                        }
+                        HandleLine(url, tier, teamsForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line);
                     }
                 }
             }
             catch (WebException)
             {
                 Console.WriteLine("WebException bei: " + url);
+            }
+        }
+
+        private static void HandleLine(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, int pageCount, ref bool blockStarted, ref string blockText, ref bool postStarted, ref string postLink, ref int postLikes, ref DateTime postDate, ref string postedBy, ref bool likeStarted, ref bool timerHeader, List<string> currentTeams, string line)
+        {
+            if (!postStarted)
+            {
+                if (line.Contains("<article class=\"message message--post js-post js-inlineModContainer"))
+                {
+                    postStarted = true;
+                }
+            }
+            else if (line.Contains("data-author=\""))
+            {
+                postedBy = line.Substring(line.IndexOf("data-author") + 5);
+                postedBy = postedBy.Substring(postedBy.IndexOf("\"") + 1);
+                postedBy = postedBy.Substring(0, postedBy.IndexOf("\""));
+            }
+            else if (line.Contains("data-content=\""))
+            {
+                postLink = line.Substring(line.IndexOf("data-content=\"") + 5);
+                postLink = postLink.Substring(postLink.IndexOf("\"") + 1);
+                postLink = postLink.Substring(0, postLink.IndexOf("\""));
+            }
+            else if (line.StartsWith("\t</article>"))
+            {
+                postStarted = false;
+                foreach (string team in currentTeams)
+                {
+                    Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
+                    teamsForTiers[tier].Add(teamObject);
+                }
+                currentTeams.Clear();
+                postLikes = 0;
+                blockText = "";
+                postedBy = "";
+                postDate = DateTime.Now;
+            }
+            else if (line.Contains("<header class=\"message-attribution\">"))
+            {
+                timerHeader = true;
+            }
+            else if (line.Contains("data-date-string=\"") && timerHeader)
+            {
+                string temp = line.Substring(line.IndexOf("data-date-string=\"") + "data-date-string=\"".Length);
+                temp = temp.Substring(temp.IndexOf("title") + "title".Length);
+                temp = temp.Substring(temp.IndexOf("\"") + 1);
+                temp = temp.Substring(0, temp.IndexOf("\""));
+                temp = temp.Replace("at ", "");
+                postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+                timerHeader = false;
+            }
+            // Maybe unnecessary due to the Smogon redesign
+            /*        
+                   else if (line.Contains("<span class=\"DateTime\""))
+                    {
+                        string temp = line.Substring(line.IndexOf("<span class=\"DateTime\"") + "<span class=\"DateTime\"".Length);
+                        temp = temp.Substring(temp.IndexOf("title=\"") + "title=\"".Length);
+                        temp = temp.Substring(0, temp.IndexOf("\""));
+                        temp = temp.Replace("at ", "");
+                        postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+                    }
+            */
+            else if (line.Contains("<span class=\"u-srOnly\">Likes:</span>"))
+            {
+                likeStarted = true;
+            }
+            else if (likeStarted)
+            {
+                likeStarted = false;
+                int likes = CountOccurences(line, "</bdi>");
+                if (line.Contains(" others</a>"))
+                {
+                    string tempLikeString = line;
+                    while (tempLikeString.Contains("</bdi>"))
+                    {
+                        tempLikeString = tempLikeString.Substring(tempLikeString.IndexOf("</bdi>") + "</bdi>".Length);
+                    }
+                    tempLikeString = tempLikeString.Substring(tempLikeString.IndexOf("and") + "and".Length).Trim();
+                    tempLikeString = tempLikeString.Substring(0, tempLikeString.IndexOf(" "));
+                    likes += int.Parse(tempLikeString);
+                }
+                postLikes = likes;
+            }
+            else if (line.Contains("<div class=\"bbCodeBlock-content\">"))
+            {
+                blockStarted = true;
+                blockText = "";
+                string temp = line.Substring(line.IndexOf("<div class=\"bbCodeBlock-content\">") + "<div class=\"bbCodeBlock-content\">".Length).Trim();
+                if (temp != "<br />" && temp != "")
+                {
+                    blockText += temp + "\n";
+                }
+            }
+            else if (blockStarted && line.Contains("</div></div>"))
+            {
+                blockStarted = false;
+                blockText = blockText.Replace("<br />", "");
+                blockText = blockText.Replace("</div>", "");
+                if (IsTeam(blockText))
+                {
+                    currentTeams.Add(blockText);
+                }
+            }
+            else if (blockStarted && (!line.Trim().StartsWith("<") || line.StartsWith("<br />")) && !line.Contains(" -- "))
+            {
+                blockText += line + "\n";
+            }
+            if (postStarted)
+            {
+                if (line.Contains("pokepast.es/"))
+                {
+                    string pasteUrl = line.Substring(line.IndexOf("pokepast.es/"));
+                    if (pasteUrl.Contains(" ") || pasteUrl.Contains("\"") || pasteUrl.Contains("<"))
+                    {
+                        int nearest = int.MaxValue;
+                        int space = pasteUrl.IndexOf(" ");
+                        int quotation = pasteUrl.IndexOf("\"");
+                        int arrow = pasteUrl.IndexOf("<");
+
+                        foreach (int pos in new int[] { space, quotation, arrow })
+                        {
+                            if (pos != -1 && pos < nearest)
+                            {
+                                nearest = pos;
+                            }
+                        }
+
+                        pasteUrl = pasteUrl.Substring(0, nearest);
+                    }
+                    pasteUrl = "http://" + pasteUrl;
+                    currentTeams.Add(GetTeamFromPasteURL(pasteUrl));
+                }
             }
         }
 
