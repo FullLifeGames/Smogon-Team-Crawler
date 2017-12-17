@@ -29,7 +29,7 @@ namespace Transform_Output_To_Importable
                 string tierDef = tier.Key;
                 foreach(Team team in tier.Value)
                 {
-                    string[] lines = team.TeamString.Replace("\t", "").Split('\n');
+                    string[] lines = team.TeamString.Replace("\t", "").Replace("\r", "").Split('\n');
                     bool skipTeam = false;
                     foreach(string line in lines)
                     {
@@ -65,9 +65,19 @@ namespace Transform_Output_To_Importable
                         showdownTier = "[" + showdownTier + "] ";
                     }
 
-                    importable += showdownTier;
+                    if (team.TeamTier != null)
+                    {
+                        importable += "[" + team.TeamTier + "]";
+                    }
+                    else
+                    {
+                        importable += showdownTier;
+                    }
                     importable += tierDef + "/";
-                    importable += "Smogon Nr. " + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy;
+
+                    string teamString = "Smogon Nr. " + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "");
+                    importable += teamString;
+                    Console.WriteLine(teamString);
 
                     importable += " ===\n\n";
 
@@ -86,7 +96,7 @@ namespace Transform_Output_To_Importable
                 string tierDef = tier.Key;
                 foreach (Team team in tier.Value)
                 {
-                    string[] lines = team.TeamString.Replace("\t", "").Split('\n');
+                    string[] lines = team.TeamString.Replace("\t", "").Replace("\r", "").Split('\n');
                     bool skipTeam = false;
                     foreach (string line in lines)
                     {
@@ -122,9 +132,19 @@ namespace Transform_Output_To_Importable
                         showdownTier = "[" + showdownTier + "] ";
                     }
 
-                    importable += showdownTier;
+                    if (team.TeamTier != null)
+                    {
+                        importable += "[" + team.TeamTier + "]";
+                    }
+                    else
+                    {
+                        importable += showdownTier;
+                    }
                     importable += tierDef + "/";
-                    importable += "RMT Nr. " + rmtTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy;
+
+                    string teamString = "RMT Nr. " + rmtTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "");
+                    importable += teamString;
+                    Console.WriteLine(teamString);
 
                     importable += " ===\n\n";
 
@@ -215,6 +235,7 @@ namespace Transform_Output_To_Importable
                 { "adv.", "gen3" },
                 { "gsc", "gen2" },
                 { "rby", "gen1" },
+                { "stadium", "gen1" },
             };
 
         private static Dictionary<string, string> mappingWithSpace = new Dictionary<string, string>
@@ -229,6 +250,7 @@ namespace Transform_Output_To_Importable
                 { "adv. ", "gen3" },
                 { "gsc ", "gen2" },
                 { "rby ", "gen1" },
+                { "stadium ", "gen1" },
             };
 
         private static List<string> listOfTiers = new List<string>

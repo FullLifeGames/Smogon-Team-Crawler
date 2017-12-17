@@ -21,6 +21,8 @@ namespace Smogon_Team_Crawler
 
         private static WebClient client;
 
+        private static string[] hardCodedBlacklistedPastes = new string[] { "spEtvevT" };
+
         static void Main(string[] args)
         {
             Dictionary<string, List<Team>> teamsForTiers = new Dictionary<string, List<Team>>();
@@ -113,11 +115,11 @@ namespace Smogon_Team_Crawler
                             {
                                 string tempInside = line.Substring(line.IndexOf("data-preview-url") + "data-preview-url".Length);
                                 tempInside = tempInside.Substring(tempInside.IndexOf("\"") + 1);
-                                if (!tempInside.Contains("preview"))
+                                if (!tempInside.Contains("/preview"))
                                 {
                                     continue;
                                 }
-                                tempInside = tempInside.Substring(0, tempInside.IndexOf("preview"));
+                                tempInside = tempInside.Substring(0, tempInside.IndexOf("/preview") + 1);
                                 string url = "http://www.smogon.com" + tempInside;
                                 Console.WriteLine("Currently Scanning: " + url);
                                 int beforeCount = teamsForTiers[kv.Key].Count;
@@ -168,11 +170,11 @@ namespace Smogon_Team_Crawler
                             {
                                 string tempInside = line.Substring(line.IndexOf("data-preview-url") + "data-preview-url".Length);
                                 tempInside = tempInside.Substring(tempInside.IndexOf("\"") + 1);
-                                if (!tempInside.Contains("preview"))
+                                if (!tempInside.Contains("/preview"))
                                 {
                                     continue;
                                 }
-                                tempInside = tempInside.Substring(0, tempInside.IndexOf("preview"));
+                                tempInside = tempInside.Substring(0, tempInside.IndexOf("/preview") + 1);
                                 string url = "http://www.smogon.com" + tempInside;
                                 Console.WriteLine("Currently Scanning: " + url);
                                 if (!rmtForTiers.ContainsKey(prefix))
@@ -330,11 +332,13 @@ namespace Smogon_Team_Crawler
 
                     bool timerHeader = false;
 
+                    string lastLine = "";
+
                     List<string> currentTeams = new List<string>();
 
                     foreach (string line in site.Split('\n'))
                     {
-                        HandleLine(url, prefix, rmtForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line);
+                        HandleLine(url, prefix, rmtForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line, ref lastLine);
                     }
                 }
             }
@@ -382,7 +386,7 @@ namespace Smogon_Team_Crawler
                 {
                     mon = mon.Substring(0, mon.IndexOf("@")).Trim();
                 }
-                if (mon.Contains("("))
+                if (mon.Contains("(") && mon.Contains(")"))
                 {
                     mon = mon.Substring(mon.IndexOf("(") + 1);
                     mon = mon.Substring(0, mon.IndexOf(")"));
@@ -430,21 +434,25 @@ namespace Smogon_Team_Crawler
 
                     bool timerHeader = false;
 
+                    string lastLine = "";
+
                     List<string> currentTeams = new List<string>();
 
                     foreach (string line in site.Split('\n'))
                     {
-                        HandleLine(url, tier, teamsForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line);
+                        HandleLine(url, tier, teamsForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line, ref lastLine);
                     }
                 }
             }
-            catch (WebException)
+            catch (WebException e)
             {
                 Console.WriteLine("WebException bei: " + url);
+                Console.WriteLine(e.Message);
+                Console.ReadLine();
             }
         }
 
-        private static void HandleLine(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, int pageCount, ref bool blockStarted, ref string blockText, ref bool postStarted, ref string postLink, ref int postLikes, ref DateTime postDate, ref string postedBy, ref bool likeStarted, ref bool timerHeader, List<string> currentTeams, string line)
+        private static void HandleLine(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, int pageCount, ref bool blockStarted, ref string blockText, ref bool postStarted, ref string postLink, ref int postLikes, ref DateTime postDate, ref string postedBy, ref bool likeStarted, ref bool timerHeader, List<string> currentTeams, string line, ref string lastLine)
         {
             if (!postStarted)
             {
@@ -470,8 +478,53 @@ namespace Smogon_Team_Crawler
                 postStarted = false;
                 foreach (string team in currentTeams)
                 {
-                    Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
-                    teamsForTiers[tier].Add(teamObject);
+                    string tmpTeam = team;
+                    bool moreTeams = false;
+                    while (tmpTeam.Contains("==="))
+                    {
+                        moreTeams = true;
+                        string teamLine = tmpTeam.Substring(tmpTeam.IndexOf("===") + "===".Length);
+                        if (!teamLine.Contains("\n"))
+                        {
+                            break;
+                        }
+                        teamLine = teamLine.Substring(0, teamLine.IndexOf("\n"));
+
+                        string teamTier = null;
+                        if (teamLine.Contains("[") && teamLine.Contains("]"))
+                        {
+                            teamTier = teamLine.Substring(teamLine.IndexOf("[") + 1, teamLine.IndexOf("]") - teamLine.IndexOf("[") - 1);
+                            teamLine = teamLine.Substring(teamLine.IndexOf("]") + 1);
+                        }
+
+                        string teamTitle = teamLine.Substring(0, teamLine.IndexOf("===")).Trim();
+
+                        string fullTempTeam = tmpTeam.Substring(tmpTeam.IndexOf("===") + "===".Length);
+                        fullTempTeam = fullTempTeam.Substring(fullTempTeam.IndexOf("\n") + 1);
+
+                        if (fullTempTeam.Contains("==="))
+                        {
+                            fullTempTeam = fullTempTeam.Substring(0, fullTempTeam.IndexOf("==="));
+                        }
+
+                        Team teamObject = new Team(fullTempTeam, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
+                        teamObject.TeamTier = teamTier;
+                        teamObject.TeamTitle = teamTitle;
+                        teamsForTiers[tier].Add(teamObject);
+
+                        tmpTeam = tmpTeam.Substring(tmpTeam.IndexOf("===") + "===".Length);
+                        tmpTeam = tmpTeam.Substring(tmpTeam.IndexOf("\n") + 1);
+
+                        if (tmpTeam.Contains("==="))
+                        {
+                            tmpTeam = tmpTeam.Substring(tmpTeam.IndexOf("==="));
+                        }
+                    }
+                    if (!moreTeams)
+                    {
+                        Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
+                        teamsForTiers[tier].Add(teamObject);
+                    }
                 }
                 currentTeams.Clear();
                 postLikes = 0;
@@ -535,9 +588,10 @@ namespace Smogon_Team_Crawler
                     blockText += temp + "\n";
                 }
             }
-            else if (blockStarted && line.Contains("</div></div>"))
+            else if (blockStarted && ((line.Trim().Replace("\t", "").Contains("</div>") && lastLine.Trim().Replace("\t", "").Contains("</div>")) || line.Contains("</div></div>")))
             {
                 blockStarted = false;
+                blockText = blockText.Replace("\t", "");
                 blockText = blockText.Replace("<br />", "");
                 blockText = blockText.Replace("</div>", "");
                 if (IsTeam(blockText))
@@ -572,14 +626,100 @@ namespace Smogon_Team_Crawler
                         pasteUrl = pasteUrl.Substring(0, nearest);
                     }
                     pasteUrl = "http://" + pasteUrl;
-                    currentTeams.Add(GetTeamFromPasteURL(pasteUrl));
+                    currentTeams.Add(GetTeamFromPokepasteURL(pasteUrl));
+                }
+                if (line.Contains("pastebin.com/"))
+                {
+                    string pasteUrl = line.Substring(line.IndexOf("pastebin.com/"));
+                    if (pasteUrl.Contains(" ") || pasteUrl.Contains("\"") || pasteUrl.Contains("<"))
+                    {
+                        int nearest = int.MaxValue;
+                        int space = pasteUrl.IndexOf(" ");
+                        int quotation = pasteUrl.IndexOf("\"");
+                        int arrow = pasteUrl.IndexOf("<");
+
+                        foreach (int pos in new int[] { space, quotation, arrow })
+                        {
+                            if (pos != -1 && pos < nearest)
+                            {
+                                nearest = pos;
+                            }
+                        }
+
+                        pasteUrl = pasteUrl.Substring(0, nearest);
+                    }
+                    if (pasteUrl.Contains("/raw/"))
+                    {
+                        pasteUrl = "https://" + pasteUrl;
+                    }
+                    else
+                    {
+                        pasteUrl = "https://pastebin.com/raw/" + pasteUrl.Substring(pasteUrl.IndexOf("/") + 1);
+                    }
+                    string pasteString = GetTeamFromPastebinURL(pasteUrl);
+                    if (IsTeam(pasteString))
+                    {
+                        bool blackListed = false;
+                        foreach(string urlPart in hardCodedBlacklistedPastes)
+                        {
+                            if (pasteUrl.Contains(urlPart))
+                            {
+                                blackListed = true;
+                            }
+                        }
+                        if (!blackListed)
+                        {
+                            currentTeams.Add(pasteString);
+                        }
+                    }
+                }
+                if (line.Contains("hastebin.com/"))
+                {
+                    string pasteUrl = line.Substring(line.IndexOf("hastebin.com/"));
+                    if (pasteUrl.Contains(" ") || pasteUrl.Contains("\"") || pasteUrl.Contains("<"))
+                    {
+                        int nearest = int.MaxValue;
+                        int space = pasteUrl.IndexOf(" ");
+                        int quotation = pasteUrl.IndexOf("\"");
+                        int arrow = pasteUrl.IndexOf("<");
+
+                        foreach (int pos in new int[] { space, quotation, arrow })
+                        {
+                            if (pos != -1 && pos < nearest)
+                            {
+                                nearest = pos;
+                            }
+                        }
+
+                        pasteUrl = pasteUrl.Substring(0, nearest);
+                    }
+                    if (pasteUrl.Contains("/raw/"))
+                    {
+                        pasteUrl = "https://" + pasteUrl;
+                    }
+                    else
+                    {
+                        pasteUrl = "https://hastebin.com/raw/" + pasteUrl.Substring(pasteUrl.IndexOf("/") + 1);
+                    }
+                    string pasteString = GetTeamFromPastebinURL(pasteUrl);
+                    if (IsTeam(pasteString))
+                    {
+                        currentTeams.Add(pasteString);
+                    }
                 }
             }
+            lastLine = line;
         }
 
-        private static string GetTeamFromPasteURL(string pasteUrl)
+        private static string GetTeamFromPokepasteURL(string pasteUrl)
         {
-            string site = client.DownloadString(pasteUrl);
+            string site = "";
+            try
+            {
+                site = client.DownloadString(pasteUrl);
+            }
+            catch (WebException)
+            { }
 
             string team = "";
 
@@ -606,9 +746,35 @@ namespace Smogon_Team_Crawler
             return team;
         }
 
+        private static string GetTeamFromPastebinURL(string pasteUrl)
+        {
+            string site = "";
+            try
+            {
+                site = client.DownloadString(pasteUrl);
+            }
+            catch (WebException)
+            {}
+
+            string team = Regex.Replace(site, "<.*?>", String.Empty);
+
+            return team;
+        }
+        
+        private static Regex doubleRowRegex = new Regex(@"\n\n");
+
         private static bool IsTeam(string blockText)
         {
-            return CountOccurences(blockText, "EVs: ") >= 6 && CountOccurences(blockText, "Nature") >= 6 && CountOccurences(blockText, "Ability: ") >= 6;
+            string[] split = doubleRowRegex.Split(blockText.Replace("\r", ""));
+            int countFullMoves = 0;
+            foreach(string mon in split)
+            {
+                if(CountOccurences(mon, "\n- ") >= 4)
+                {
+                    countFullMoves++;
+                }
+            }
+            return countFullMoves >= 6 || (CountOccurences(blockText, "EVs: ") >= 6 && CountOccurences(blockText, "Nature") >= 6 && CountOccurences(blockText, "Ability: ") >= 6);
         }
 
         private static int CountOccurences(string haystack, string needle)

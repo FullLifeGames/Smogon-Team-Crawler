@@ -13,6 +13,8 @@ namespace Smogon_Team_Crawler
         public DateTime PostDate;
         public string URL;
         public string PostedBy;
+        public string TeamTitle = null;
+        public string TeamTier = null;
 
         public double Koeffizient;
         private static double koeffScale = 5;
