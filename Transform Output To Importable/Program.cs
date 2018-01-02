@@ -19,83 +19,82 @@ namespace Transform_Output_To_Importable
             sr = new StreamReader("../../../Smogon Team Crawler/bin/Release/outputRMTJson.txt");
             Dictionary<string, List<Team>> rmts = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, List<Team>>>(sr.ReadToEnd());
             sr.Close();
+                        
+            Dictionary<string, List<Team>> teamByActualTiers = new Dictionary<string, List<Team>>();
 
-            string importable = "";
-
-            int smogonTeamCount = 1;
-
-            foreach(KeyValuePair<string, List<Team>> tier in smogonTeams)
+            foreach (KeyValuePair<string, List<Team>> tier in smogonTeams)
             {
                 string tierDef = tier.Key;
-                foreach(Team team in tier.Value)
+                foreach (Team team in tier.Value)
                 {
-                    string[] lines = team.TeamString.Replace("\t", "").Replace("\r", "").Split('\n');
-                    bool skipTeam = false;
-                    foreach(string line in lines)
-                    {
-                        if(line.Length > 61)
-                        {
-                            skipTeam = true;
-                            break;
-                        }
-                    }
-                    if (skipTeam) continue;
-
-                    for(int i= 0; i < lines.Length; i++)
-                    {
-                        if (lines[i].StartsWith("-") && lines[i].Contains("/"))
-                        {
-                            lines[i] = lines[i].Substring(0, lines[i].IndexOf("/"));
-                        }
-                        if (lines[i].Contains("]"))
-                        {
-                            lines[i] = lines[i].Substring(0, lines[i].IndexOf("]") + 1);
-                        }
-                    }
-                    string betterTeamString = String.Join("\n", lines);
-
-                    importable += "=== ";
                     string showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL);
-                    if(showdownTier == null)
+                    if (showdownTier == null)
                     {
                         showdownTier = "";
                     }
                     else
                     {
-                        showdownTier = "[" + showdownTier + "] ";
+                        showdownTier = "[" + showdownTier + "]";
                     }
 
                     if (team.TeamTier != null)
                     {
-                        importable += "[" + team.TeamTier + "]";
+                        showdownTier = "[" + team.TeamTier + "]";
                     }
-                    else
+                    if (!teamByActualTiers.ContainsKey(showdownTier))
                     {
-                        importable += showdownTier;
+                        teamByActualTiers.Add(showdownTier, new List<Team>());
                     }
-                    importable += tierDef + "/";
-
-                    string teamString = "Smogon Nr. " + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "");
-                    importable += teamString;
-                    Console.WriteLine(teamString);
-
-                    importable += " ===\n\n";
-
-                    importable += betterTeamString;
-
-                    importable += "\n\n\n\n";
-
-                    smogonTeamCount++;
+                    team.Definition = tierDef;
+                    team.RMT = false;
+                    teamByActualTiers[showdownTier].Add(team);
                 }
             }
-
-            int rmtTeamCount = 1;
 
             foreach (KeyValuePair<string, List<Team>> tier in rmts)
             {
                 string tierDef = tier.Key;
                 foreach (Team team in tier.Value)
                 {
+                    string showdownTier = TranslateRMTTeamsTier(tierDef);
+                    if (showdownTier == null)
+                    {
+                        showdownTier = "";
+                    }
+                    else
+                    {
+                        showdownTier = "[" + showdownTier + "]";
+                    }
+
+                    if (team.TeamTier != null)
+                    {
+                        showdownTier = "[" + team.TeamTier + "]";
+                    }
+                    if (!teamByActualTiers.ContainsKey(showdownTier))
+                    {
+                        teamByActualTiers.Add(showdownTier, new List<Team>());
+                    }
+                    team.Definition = tierDef;
+                    team.RMT = true;
+                    teamByActualTiers[showdownTier].Add(team);
+                }
+            }
+
+            foreach (KeyValuePair<string, List<Team>> kv in teamByActualTiers)
+            {
+                kv.Value.Sort((t1, t2) => { return (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes); });
+            }
+
+
+            Dictionary<string, string> tierOutputs = new Dictionary<string, string>();
+            string finalImportable = "";
+            int smogonTeamCount = 1;
+            foreach (KeyValuePair<string, List<Team>> tier in teamByActualTiers)
+            {
+                StringBuilder importable = new StringBuilder("");
+                foreach (Team team in tier.Value)
+                {
+                    string tierDef = team.Definition;
                     string[] lines = team.TeamString.Replace("\t", "").Replace("\r", "").Split('\n');
                     bool skipTeam = false;
                     foreach (string line in lines)
@@ -121,47 +120,38 @@ namespace Transform_Output_To_Importable
                     }
                     string betterTeamString = String.Join("\n", lines);
 
-                    importable += "=== ";
-                    string showdownTier = TranslateRMTTeamsTier(tierDef);
-                    if (showdownTier == null)
-                    {
-                        showdownTier = "";
-                    }
-                    else
-                    {
-                        showdownTier = "[" + showdownTier + "] ";
-                    }
+                    importable.Append("=== ");
+                    string showdownTier = tier.Key;
+                    importable.Append(showdownTier + " ");
+                    importable.Append(tierDef + "/");
 
-                    if (team.TeamTier != null)
-                    {
-                        importable += "[" + team.TeamTier + "]";
-                    }
-                    else
-                    {
-                        importable += showdownTier;
-                    }
-                    importable += tierDef + "/";
-
-                    string teamString = "RMT Nr. " + rmtTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "");
-                    importable += teamString;
+                    string teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "");
+                    importable.Append(teamString);
                     Console.WriteLine(teamString);
 
-                    importable += " ===\n\n";
+                    importable.Append(" ===\n\n");
 
-                    importable += betterTeamString;
+                    importable.Append(betterTeamString);
 
-                    importable += "\n\n\n\n";
+                    importable.Append("\n\n\n\n");
 
-                    rmtTeamCount++;
+                    smogonTeamCount++;
                 }
+                finalImportable += importable;
+                tierOutputs.Add(tier.Key, importable.ToString());
             }
 
-            importable = importable.Replace("\n", "\r\n");
+            tierOutputs.Add("importable", finalImportable);
+            StreamWriter sw;
+            foreach (KeyValuePair<string, string> outputs in tierOutputs)
+            {
+                string tempImportable = outputs.Value.Replace("\n", "\r\n");
+                string tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
 
-            StreamWriter sw = new StreamWriter("importable.txt");
-            sw.Write(importable);
-            sw.Close();
-
+                sw = new StreamWriter(tempTier.Replace("[", "").Replace("]", "") + ".txt");
+                sw.Write(tempImportable);
+                sw.Close();
+            }
         }
 
         private static string TranslateSmogonTeamsTier(string tier, string url)

@@ -16,6 +16,9 @@ namespace Smogon_Team_Crawler
         public string TeamTitle = null;
         public string TeamTier = null;
 
+        public bool RMT = false;
+        public string Definition = null;
+
         public double Koeffizient;
         private static double koeffScale = 5;
 
