@@ -59,16 +59,17 @@ namespace Transform_Output_To_Importable
                     string showdownTier = TranslateRMTTeamsTier(tierDef);
                     if (showdownTier == null)
                     {
+                        team.TeamTier = "";
                         showdownTier = "";
+                    }
+                    else if (team.TeamTier != null)
+                    {
+                        showdownTier = "[" + team.TeamTier + "]";
                     }
                     else
                     {
+                        team.TeamTier = showdownTier;
                         showdownTier = "[" + showdownTier + "]";
-                    }
-
-                    if (team.TeamTier != null)
-                    {
-                        showdownTier = "[" + team.TeamTier + "]";
                     }
                     if (!teamByActualTiers.ContainsKey(showdownTier))
                     {
@@ -152,6 +153,10 @@ namespace Transform_Output_To_Importable
                 sw.Write(tempImportable);
                 sw.Close();
             }
+
+            sw = new StreamWriter("finalJson.txt");
+            sw.Write(Newtonsoft.Json.JsonConvert.SerializeObject(tierOutputs));
+            sw.Close();
         }
 
         private static string TranslateSmogonTeamsTier(string tier, string url)
