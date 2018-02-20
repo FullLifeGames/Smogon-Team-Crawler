@@ -12,11 +12,11 @@ namespace Transform_Output_To_Importable
     {
         static void Main(string[] args)
         {
-            StreamReader sr = new StreamReader("../../../Smogon Team Crawler/bin/Release/outputJson.txt");
+            StreamReader sr = new StreamReader("outputJson.txt");
             Dictionary<string, List<Team>> smogonTeams = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, List<Team>>>(sr.ReadToEnd());
             sr.Close();
 
-            sr = new StreamReader("../../../Smogon Team Crawler/bin/Release/outputRMTJson.txt");
+            sr = new StreamReader("outputRMTJson.txt");
             Dictionary<string, List<Team>> rmts = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, List<Team>>>(sr.ReadToEnd());
             sr.Close();
                         

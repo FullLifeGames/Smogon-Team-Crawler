@@ -15,6 +15,7 @@ namespace Smogon_Team_Crawler
         public string PostedBy;
         public string TeamTitle = null;
         public string TeamTier = null;
+        public string TeamLineUp = null;
 
         public bool RMT = false;
         public string Definition = null;

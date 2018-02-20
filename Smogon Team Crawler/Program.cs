@@ -211,6 +211,7 @@ namespace Smogon_Team_Crawler
                     foreach (Team team in teamList)
                     {
                         string lineup = GetTeamLineupString(team.TeamString);
+                        team.TeamLineUp = lineup;
                         string outputString = "";
                         List<string> lines = new List<string>();
                         foreach (string monData in team.TeamString.Split(new string[] { "\n\n" }, StringSplitOptions.None))
@@ -250,6 +251,7 @@ namespace Smogon_Team_Crawler
                     foreach (Team team in teamList)
                     {
                         string lineup = GetTeamLineupString(team.TeamString);
+                        team.TeamLineUp = lineup;
                         string outputString = "";
                         List<string> lines = new List<string>();
                         foreach (string monData in team.TeamString.Split(new string[] { "\n\n" }, StringSplitOptions.None))
