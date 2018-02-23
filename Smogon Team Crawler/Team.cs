@@ -21,7 +21,7 @@ namespace Smogon_Team_Crawler
         public string Definition = null;
 
         public double Koeffizient;
-        private static double koeffScale = 5;
+        private static double koeffScale = 2;
 
         public Team(string teamString, int likes, DateTime postDate, string url, string postedBy)
         {
@@ -39,7 +39,7 @@ namespace Smogon_Team_Crawler
             this.Koeffizient = this.Likes * 
                                 (1.0 / 
                                         (
-                                            (DateTime.Now.Subtract(this.PostDate).TotalMinutes / 60.0 / 24.0 / 365.0) * koeffScale + 1
+                                            Math.Exp(koeffScale * (DateTime.Now.Subtract(this.PostDate).TotalMinutes / 60.0 / 24.0 / 365.0))
                                         )
                                 );
         }
