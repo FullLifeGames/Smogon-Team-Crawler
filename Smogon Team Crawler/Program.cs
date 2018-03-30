@@ -108,10 +108,18 @@ namespace Smogon_Team_Crawler
                     for (int pageCount = 1; pageCount <= pages; pageCount++)
                     {
                         site = client.DownloadString(kv.Value + "page-" + pageCount);
+                        
+                        string prefix = null;
 
                         foreach (string line in site.Split('\n'))
                         {
-                            if (line.Contains("data-preview-url"))
+                            if (line.Contains("<span class=\"label"))
+                            {
+                                prefix = line.Substring(line.IndexOf("<span class=\"label") + 1);
+                                prefix = prefix.Substring(prefix.IndexOf(">") + 1);
+                                prefix = prefix.Substring(0, prefix.IndexOf("<"));
+                            }
+                            else if (line.Contains("data-preview-url"))
                             {
                                 string tempInside = line.Substring(line.IndexOf("data-preview-url") + "data-preview-url".Length);
                                 tempInside = tempInside.Substring(tempInside.IndexOf("\"") + 1);
@@ -123,7 +131,7 @@ namespace Smogon_Team_Crawler
                                 string url = "http://www.smogon.com" + tempInside;
                                 Console.WriteLine("Currently Scanning: " + url);
                                 int beforeCount = teamsForTiers[kv.Key].Count;
-                                AnalyzeTopic(url, kv.Key, teamsForTiers);
+                                AnalyzeTopic(url, kv.Key, teamsForTiers, prefix);
                                 int afterCount = teamsForTiers[kv.Key].Count;
                                 Console.WriteLine("Added " + (afterCount - beforeCount) + " Teams");
                                 Console.WriteLine();
@@ -340,7 +348,7 @@ namespace Smogon_Team_Crawler
 
                     foreach (string line in site.Split('\n'))
                     {
-                        HandleLine(url, prefix, rmtForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line, ref lastLine);
+                        HandleLine(url, prefix, rmtForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line, ref lastLine, prefix);
                     }
                 }
             }
@@ -399,7 +407,7 @@ namespace Smogon_Team_Crawler
             return String.Join(", ", mons);
         }
 
-        private static void AnalyzeTopic(string url, string tier, Dictionary<string, List<Team>> teamsForTiers)
+        private static void AnalyzeTopic(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, string prefix)
         {
             try
             {
@@ -442,7 +450,7 @@ namespace Smogon_Team_Crawler
 
                     foreach (string line in site.Split('\n'))
                     {
-                        HandleLine(url, tier, teamsForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line, ref lastLine);
+                        HandleLine(url, tier, teamsForTiers, pageCount, ref blockStarted, ref blockText, ref postStarted, ref postLink, ref postLikes, ref postDate, ref postedBy, ref likeStarted, ref timerHeader, currentTeams, line, ref lastLine, prefix);
                     }
                 }
             }
@@ -450,11 +458,10 @@ namespace Smogon_Team_Crawler
             {
                 Console.WriteLine("WebException bei: " + url);
                 Console.WriteLine(e.Message);
-                Console.ReadLine();
             }
         }
 
-        private static void HandleLine(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, int pageCount, ref bool blockStarted, ref string blockText, ref bool postStarted, ref string postLink, ref int postLikes, ref DateTime postDate, ref string postedBy, ref bool likeStarted, ref bool timerHeader, List<string> currentTeams, string line, ref string lastLine)
+        private static void HandleLine(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, int pageCount, ref bool blockStarted, ref string blockText, ref bool postStarted, ref string postLink, ref int postLikes, ref DateTime postDate, ref string postedBy, ref bool likeStarted, ref bool timerHeader, List<string> currentTeams, string line, ref string lastLine, string prefix)
         {
             if (!postStarted)
             {
@@ -509,7 +516,7 @@ namespace Smogon_Team_Crawler
                             fullTempTeam = fullTempTeam.Substring(0, fullTempTeam.IndexOf("==="));
                         }
 
-                        Team teamObject = new Team(fullTempTeam, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
+                        Team teamObject = new Team(fullTempTeam, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy, prefix);
                         teamObject.TeamTier = teamTier;
                         teamObject.TeamTitle = teamTitle;
                         teamsForTiers[tier].Add(teamObject);
@@ -524,7 +531,7 @@ namespace Smogon_Team_Crawler
                     }
                     if (!moreTeams)
                     {
-                        Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy);
+                        Team teamObject = new Team(team, postLikes, postDate, url + "page-" + pageCount + "#" + postLink, postedBy, prefix);
                         teamsForTiers[tier].Add(teamObject);
                     }
                 }

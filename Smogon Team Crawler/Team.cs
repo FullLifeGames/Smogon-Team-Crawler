@@ -17,19 +17,22 @@ namespace Smogon_Team_Crawler
         public string TeamTier = null;
         public string TeamLineUp = null;
 
+        public string TeamTag = null;
+
         public bool RMT = false;
         public string Definition = null;
 
         public double Koeffizient;
-        private static double koeffScale = 2;
+        private static double koeffScale = 3;
 
-        public Team(string teamString, int likes, DateTime postDate, string url, string postedBy)
+        public Team(string teamString, int likes, DateTime postDate, string url, string postedBy, string prefix)
         {
             this.TeamString = teamString;
             this.Likes = likes;
             this.PostDate = postDate;
             this.URL = url;
             this.PostedBy = postedBy;
+            this.TeamTag = prefix;
 
             CalculateKoeffizient();
         }

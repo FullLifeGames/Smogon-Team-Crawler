@@ -27,7 +27,7 @@ namespace Transform_Output_To_Importable
                 string tierDef = tier.Key;
                 foreach (Team team in tier.Value)
                 {
-                    string showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL);
+                    string showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL, team.TeamTag);
                     if (showdownTier == null)
                     {
                         showdownTier = "";
@@ -159,7 +159,7 @@ namespace Transform_Output_To_Importable
             sw.Close();
         }
 
-        private static string TranslateSmogonTeamsTier(string tier, string url)
+        private static string TranslateSmogonTeamsTier(string tier, string url, string tag)
         {
             string workingTier = tier.ToLower();
             if (workingTier.Contains("overused"))
@@ -213,6 +213,11 @@ namespace Transform_Output_To_Importable
                     }
                     return mappingWithSpace[key] + "ou";                    
                 }
+            }
+
+            if(tag != null && tag.Contains("Gen "))
+            {
+                return tag.ToLower().Replace(" ", "");
             }
 
             return null;            
