@@ -366,7 +366,7 @@ namespace Smogon_Team_Crawler
                 bool unique = true;
                 foreach(Team uniqueTeam in uniqueTeams)
                 {
-                    if (uniqueTeam.Equals(team))
+                    if (uniqueTeam.EqualsOrEmpty(team))
                     {
                         unique = false;
                         break;
@@ -555,17 +555,6 @@ namespace Smogon_Team_Crawler
                 postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
                 timerHeader = false;
             }
-            // Maybe unnecessary due to the Smogon redesign
-            /*        
-                   else if (line.Contains("<span class=\"DateTime\""))
-                    {
-                        string temp = line.Substring(line.IndexOf("<span class=\"DateTime\"") + "<span class=\"DateTime\"".Length);
-                        temp = temp.Substring(temp.IndexOf("title=\"") + "title=\"".Length);
-                        temp = temp.Substring(0, temp.IndexOf("\""));
-                        temp = temp.Replace("at ", "");
-                        postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                    }
-            */
             else if (line.Contains("<span class=\"u-srOnly\">Likes:</span>"))
             {
                 likeStarted = true;
@@ -635,7 +624,10 @@ namespace Smogon_Team_Crawler
                         pasteUrl = pasteUrl.Substring(0, nearest);
                     }
                     pasteUrl = "http://" + pasteUrl;
-                    currentTeams.Add(GetTeamFromPokepasteURL(pasteUrl));
+                    if (!pasteUrl.Contains("/img/"))
+                    {
+                        currentTeams.Add(GetTeamFromPokepasteURL(pasteUrl));
+                    }
                 }
                 if (line.Contains("pastebin.com/"))
                 {
@@ -669,7 +661,7 @@ namespace Smogon_Team_Crawler
                     if (IsTeam(pasteString))
                     {
                         bool blackListed = false;
-                        foreach(string urlPart in hardCodedBlacklistedPastes)
+                        foreach (string urlPart in hardCodedBlacklistedPastes)
                         {
                             if (pasteUrl.Contains(urlPart))
                             {

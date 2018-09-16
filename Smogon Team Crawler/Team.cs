@@ -2,12 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Smogon_Team_Crawler
 {
     public class Team
     {
+        private static Regex regex = new Regex("[^0-9a-zA-Z]+");
+
         public string TeamString;
         public int Likes;
         public DateTime PostDate;
@@ -16,6 +19,7 @@ namespace Smogon_Team_Crawler
         public string TeamTitle = null;
         public string TeamTier = null;
         public string TeamLineUp = null;
+        private string RegexTeam;
 
         public string TeamTag = null;
 
@@ -27,12 +31,13 @@ namespace Smogon_Team_Crawler
 
         public Team(string teamString, int likes, DateTime postDate, string url, string postedBy, string prefix)
         {
-            this.TeamString = teamString;
+            this.TeamString = teamString.Replace("\t", "");
             this.Likes = likes;
             this.PostDate = postDate;
             this.URL = url;
             this.PostedBy = postedBy;
             this.TeamTag = prefix;
+            this.RegexTeam = regex.Replace(teamString, "");
 
             CalculateKoeffizient();
         }
@@ -47,9 +52,13 @@ namespace Smogon_Team_Crawler
                                 );
         }
 
-        public bool Equals(Team team)
+        public bool EqualsOrEmpty(Team team)
         {
-            return this.TeamString == team.TeamString;
+            if (team.RegexTeam == "")
+            {
+                return true;
+            }
+            return this.RegexTeam == team.RegexTeam;
         }
     }
 }
