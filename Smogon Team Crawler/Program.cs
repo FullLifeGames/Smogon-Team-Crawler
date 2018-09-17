@@ -215,6 +215,7 @@ namespace Smogon_Team_Crawler
 
                     kv.Value.Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
                     List<Team> teamList = RemoveDuplicates(kv.Value);
+                    teamsForTiers[kv.Key] = teamList;
 
                     foreach (Team team in teamList)
                     {
@@ -255,6 +256,7 @@ namespace Smogon_Team_Crawler
 
                     kv.Value.Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
                     List<Team> teamList = RemoveDuplicates(kv.Value);
+                    rmtForTiers[kv.Key] = teamList;
 
                     foreach (Team team in teamList)
                     {
