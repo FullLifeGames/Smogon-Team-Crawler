@@ -204,20 +204,18 @@ namespace Smogon_Team_Crawler
             string output = "";
             if (mainForum)
             {
-                foreach (KeyValuePair<string, List<Team>> kv in teamsForTiers)
+                foreach (string key in teamsForTiers.Keys)
                 {
-                    if (kv.Value.Count == 0)
+                    if (teamsForTiers[key].Count == 0)
                     {
                         continue;
                     }
 
-                    output += "Smogon (" + kv.Key + "):\n\n";
+                    output += "Smogon (" + key + "):\n\n";
+                    teamsForTiers[key] = RemoveDuplicates(teamsForTiers[key]);
+                    teamsForTiers[key].Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
 
-                    kv.Value.Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
-                    List<Team> teamList = RemoveDuplicates(kv.Value);
-                    teamsForTiers[kv.Key] = teamList;
-
-                    foreach (Team team in teamList)
+                    foreach (Team team in teamsForTiers[key])
                     {
                         string lineup = GetTeamLineupString(team.TeamString);
                         team.TeamLineUp = lineup;
@@ -245,20 +243,19 @@ namespace Smogon_Team_Crawler
             string outputRMT = "";
             if (rmtForum)
             {
-                foreach (KeyValuePair<string, List<Team>> kv in rmtForTiers)
+                foreach (string key in rmtForTiers.Keys)
                 {
-                    if (kv.Value.Count == 0)
+                    if (rmtForTiers[key].Count == 0)
                     {
                         continue;
                     }
 
-                    outputRMT += "Smogon (" + kv.Key + "):\n\n";
+                    outputRMT += "Smogon (" + key + "):\n\n";
 
-                    kv.Value.Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
-                    List<Team> teamList = RemoveDuplicates(kv.Value);
-                    rmtForTiers[kv.Key] = teamList;
+                    rmtForTiers[key] = RemoveDuplicates(rmtForTiers[key]);
+                    rmtForTiers[key].Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
 
-                    foreach (Team team in teamList)
+                    foreach (Team team in rmtForTiers[key])
                     {
                         string lineup = GetTeamLineupString(team.TeamString);
                         team.TeamLineUp = lineup;
