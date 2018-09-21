@@ -204,7 +204,7 @@ namespace Smogon_Team_Crawler
             string output = "";
             if (mainForum)
             {
-                foreach (string key in teamsForTiers.Keys)
+                foreach (string key in teamsForTiers.Keys.ToList())
                 {
                     if (teamsForTiers[key].Count == 0)
                     {
@@ -243,7 +243,7 @@ namespace Smogon_Team_Crawler
             string outputRMT = "";
             if (rmtForum)
             {
-                foreach (string key in rmtForTiers.Keys)
+                foreach (string key in rmtForTiers.Keys.ToList())
                 {
                     if (rmtForTiers[key].Count == 0)
                     {
