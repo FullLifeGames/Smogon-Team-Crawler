@@ -126,7 +126,7 @@ namespace Transform_Output_To_Importable
                     importable.Append(showdownTier + " ");
                     importable.Append(tierDef + "/");
 
-                    string teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "");
+                    string teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "") + " URL: " + team.URL;
                     importable.Append(teamString);
                     Console.WriteLine(teamString);
 
