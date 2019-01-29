@@ -625,7 +625,11 @@ namespace Smogon_Team_Crawler
                     pasteUrl = "http://" + pasteUrl;
                     if (!pasteUrl.Contains("/img/"))
                     {
-                        currentTeams.Add(GetTeamFromPokepasteURL(pasteUrl));
+                        string pokePasteTeam = GetTeamFromPokepasteURL(pasteUrl);
+                        if (IsTeam(pokePasteTeam))
+                        {
+                            currentTeams.Add(pokePasteTeam);
+                        }
                     }
                 }
                 if (line.Contains("pastebin.com/"))
