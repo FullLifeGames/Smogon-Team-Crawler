@@ -540,7 +540,7 @@ namespace Smogon_Team_Crawler
                 postedBy = "";
                 postDate = DateTime.Now;
             }
-            else if (line.Contains("<header class=\"message-attribution\">"))
+            else if (line.Contains("<header class=\"message-attribution message-attribution--split\">"))
             {
                 timerHeader = true;
             }
@@ -554,7 +554,7 @@ namespace Smogon_Team_Crawler
                 postDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
                 timerHeader = false;
             }
-            else if (line.Contains("<span class=\"u-srOnly\">Likes:</span>"))
+            else if (line.Contains("<span class=\"u-srOnly\">Reactions:</span>"))
             {
                 likeStarted = true;
             }
@@ -572,6 +572,10 @@ namespace Smogon_Team_Crawler
                     tempLikeString = tempLikeString.Substring(tempLikeString.IndexOf("and") + "and".Length).Trim();
                     tempLikeString = tempLikeString.Substring(0, tempLikeString.IndexOf(" "));
                     likes += int.Parse(tempLikeString);
+                }
+                else if(line.Contains("1 other person</a>"))
+                {
+                    likes++;
                 }
                 postLikes = likes;
             }
