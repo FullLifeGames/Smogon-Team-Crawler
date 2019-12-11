@@ -8,9 +8,43 @@ using System.Threading.Tasks;
 
 namespace Transform_Output_To_Importable
 {
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        public static string CurrentNewGen = "gen8";
+        public static string CurrentWorkingGen = "gen7";
+
+        private static Dictionary<string, string> mapping = new Dictionary<string, string>
+        {
+            { "ss", "gen8" },
+            { "sm", "gen7" },
+            { "oras", "gen6" },
+            { "xy", "gen6" },
+            { "bw", "gen5" },
+            { "bw2", "gen5" },
+            { "dpp", "gen4" },
+            { "adv", "gen3" },
+            { "adv.", "gen3" },
+            { "gsc", "gen2" },
+            { "rby", "gen1" },
+            { "stadium", "gen1" },
+        };
+        private static Dictionary<string, string> mappingWithSpace = mapping.Select((val) => new KeyValuePair<string, string>(val.Key + " ", val.Value))
+                                                                               .ToDictionary(x => x.Key, x => x.Value);
+
+        private static List<string> listOfTiers = new List<string>
+        {
+            "ou",
+            "uu",
+            "ru",
+            "nu",
+            "pu",
+            "zu",
+            "ubers",
+            "doubles"
+        };
+        private static List<string> listOfTiersWithSpace = listOfTiers.Select((val) => val + " ").ToList();
+
+        public static void Main(string[] args)
         {
             StreamReader sr = new StreamReader("outputJson.txt");
             Dictionary<string, List<Team>> smogonTeams = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, List<Team>>>(sr.ReadToEnd());
@@ -162,45 +196,47 @@ namespace Transform_Output_To_Importable
         private static string TranslateSmogonTeamsTier(string tier, string url, string tag)
         {
             string workingTier = tier.ToLower();
+            string toWorkWithGen = GetToWorkWithGen(workingTier);
+
             if (workingTier.Contains("overused"))
             {
-                return "gen7ou";
+                return toWorkWithGen + "ou";
             }
             else if (workingTier.Contains("uber"))
             {
-                return "gen7ubers";
+                return toWorkWithGen + "ubers";
             }
             else if (workingTier.Contains("underused"))
             {
-                return "gen7uu";
+                return toWorkWithGen + "uu";
             }
-            else if(workingTier.Contains("rarelyused"))
+            else if (workingTier.Contains("rarelyused"))
             {
-                return "gen7ru";
+                return toWorkWithGen + "ru";
             }
             else if (workingTier.Contains("neverused"))
             {
-                return "gen7nu";
+                return toWorkWithGen + "nu";
             }
             else if (workingTier.Contains("pu"))
             {
-                return "gen7pu";
+                return toWorkWithGen + "pu";
             }
-            else if(workingTier.Contains("little cup"))
+            else if (workingTier.Contains("little cup"))
             {
-                return "gen7lc";
+                return toWorkWithGen + "lc";
             }
             else if (workingTier.Contains("doubles ou"))
             {
-                return "gen7doublesou";
+                return toWorkWithGen + "doublesou";
             }
             else if (workingTier.Contains("monotype"))
             {
-                return "gen7monotype";
+                return toWorkWithGen + "monotype";
             }
 
             string trimUrl = url.Replace("-", " ").ToLower();
-            foreach(string key in mappingWithSpace.Keys)
+            foreach (string key in mappingWithSpace.Keys)
             {
                 if (trimUrl.Contains(key))
                 {
@@ -211,69 +247,28 @@ namespace Transform_Output_To_Importable
                             return mappingWithSpace[key] + tierKey.Replace(" ", "");
                         }
                     }
-                    return mappingWithSpace[key] + "ou";                    
+                    return mappingWithSpace[key] + "ou";
                 }
             }
 
-            if(tag != null && tag.Contains("Gen "))
+            if (tag != null && tag.Contains("Gen "))
             {
                 return tag.ToLower().Replace(" ", "");
             }
 
-            return null;            
+            return null;
         }
 
-        private static Dictionary<string, string> mapping = new Dictionary<string, string>
-            {
-                { "sm", "gen7" },
-                { "oras", "gen6" },
-                { "xy", "gen6" },
-                { "bw", "gen5" },
-                { "bw2", "gen5" },
-                { "dpp", "gen4" },
-                { "adv", "gen3" },
-                { "adv.", "gen3" },
-                { "gsc", "gen2" },
-                { "rby", "gen1" },
-                { "stadium", "gen1" },
-            };
-
-        private static Dictionary<string, string> mappingWithSpace = new Dictionary<string, string>
-            {
-                { "sm ", "gen7" },
-                { "oras ", "gen6" },
-                { "xy ", "gen6" },
-                { "bw ", "gen5" },
-                { "bw2 ", "gen5" },
-                { "dpp ", "gen4" },
-                { "adv ", "gen3" },
-                { "adv. ", "gen3" },
-                { "gsc ", "gen2" },
-                { "rby ", "gen1" },
-                { "stadium ", "gen1" },
-            };
-
-        private static List<string> listOfTiers = new List<string>
+        private static string GetToWorkWithGen(string workingTier)
         {
-            "ou",
-            "uu",
-            "ru",
-            "nu",
-            "pu",
-            "ubers",
-            "doubles"
-        };
+            string toWorkWithGen = CurrentWorkingGen;
+            if (workingTier.Contains(CurrentNewGen))
+            {
+                toWorkWithGen = CurrentNewGen;
+            }
 
-        private static List<string> listOfTiersWithSpace = new List<string>
-        {
-            "ou ",
-            "uu ",
-            "ru ",
-            "nu ",
-            "pu ",
-            "ubers ",
-            "doubles "
-        };
+            return toWorkWithGen;
+        }
 
         private static string TranslateRMTTeamsTier(string tier)
         {
@@ -303,13 +298,14 @@ namespace Transform_Output_To_Importable
                 return mapping[startword] + workingTier.Substring(workingTier.IndexOf(" ") + 1).Replace(" ", "") + toAdd;
             }
 
+            string toWorkWithGen = GetToWorkWithGen(workingTier);
             if (workingTier.Contains("monotype"))
             {
-                return "gen7monotype";
+                return toWorkWithGen + "monotype";
             }
             else if(workingTier.Contains("battle spot"))
             {
-                return "gen7battlespotsingles";
+                return toWorkWithGen + "battlespotsingles";
             }
 
             return null;

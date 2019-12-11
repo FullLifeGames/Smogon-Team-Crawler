@@ -11,19 +11,18 @@ using System.Threading.Tasks;
 namespace Smogon_Team_Crawler
 {
 
-    // TODO Read teams out of RMT posts
-
-    class Program
+    public class Program
     {
+        public static string CurrentGen { get; set; } = "gen8";
 
         private static bool mainForum = true;
         private static bool rmtForum = true;
 
         private static WebClient client;
 
-        private static string[] hardCodedBlacklistedPastes = new string[] { "spEtvevT" };
+        private static string[] hardCodedBlacklistedPastes = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr" };
 
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
             Dictionary<string, List<Team>> teamsForTiers = new Dictionary<string, List<Team>>();
             Dictionary<string, List<Team>> rmtForTiers = new Dictionary<string, List<Team>>();
@@ -33,18 +32,39 @@ namespace Smogon_Team_Crawler
 
             client = new WebClient();
             string smogonMain = client.DownloadString("http://www.smogon.com/forums/");
+            bool scanStartZero = false;
             bool scanStartOne = false;
             bool scanStartTwo = false;
 
             foreach (string line in smogonMain.Split('\n'))
             {
-                if (scanStartOne)
+                if (scanStartZero)
                 {
                     if (line.Contains("class=\"subNodeLink subNodeLink--forum"))
                     {
                         string tierName = line.Substring(line.IndexOf(">") + 1);
                         tierName = tierName.Substring(0, tierName.IndexOf("<"));
-                        
+                        tierName = CurrentGen + tierName;
+
+                        string tierUrl = line.Substring(line.IndexOf("\"") + 1);
+                        tierUrl = tierUrl.Substring(0, tierUrl.IndexOf("\""));
+                        tierUrl = "http://www.smogon.com" + tierUrl;
+
+                        tierToLinks.Add(tierName, tierUrl);
+                        teamsForTiers.Add(tierName, new List<Team>());
+                    }
+                    else if (line.Contains("node-stats\""))
+                    {
+                        scanStartZero = false;
+                    }
+                }
+                else if (scanStartOne)
+                {
+                    if (line.Contains("class=\"subNodeLink subNodeLink--forum"))
+                    {
+                        string tierName = line.Substring(line.IndexOf(">") + 1);
+                        tierName = tierName.Substring(0, tierName.IndexOf("<"));
+
                         string tierUrl = line.Substring(line.IndexOf("\"") + 1);
                         tierUrl = tierUrl.Substring(0, tierUrl.IndexOf("\""));
                         tierUrl = "http://www.smogon.com" + tierUrl;
@@ -63,7 +83,7 @@ namespace Smogon_Team_Crawler
                     {
                         string urlName = line.Substring(line.IndexOf(">") + 1);
                         urlName = urlName.Substring(0, urlName.IndexOf("<"));
-                        
+
                         string url = line.Substring(line.IndexOf("\"") + 1);
                         url = url.Substring(0, url.IndexOf("\""));
                         url = "http://www.smogon.com" + url;
@@ -75,6 +95,10 @@ namespace Smogon_Team_Crawler
                         scanStartTwo = false;
                         break;
                     }
+                }
+                else if (line.Contains("Uncharted Territory"))
+                {
+                    scanStartZero = true;
                 }
                 else if (line.Contains("Smogon Metagames"))
                 {
@@ -503,6 +527,11 @@ namespace Smogon_Team_Crawler
                         {
                             teamTier = teamLine.Substring(teamLine.IndexOf("[") + 1, teamLine.IndexOf("]") - teamLine.IndexOf("[") - 1);
                             teamLine = teamLine.Substring(teamLine.IndexOf("]") + 1);
+                        }
+
+                        if (!teamLine.Contains("==="))
+                        {
+                            break;
                         }
 
                         string teamTitle = teamLine.Substring(0, teamLine.IndexOf("===")).Trim();
