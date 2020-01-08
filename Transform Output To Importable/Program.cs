@@ -234,6 +234,10 @@ namespace Transform_Output_To_Importable
             {
                 return toWorkWithGen + "monotype";
             }
+            else if (workingTier.Contains("battle stadium"))
+            {
+                return toWorkWithGen + "battlestadiumsingles";
+            }
 
             string trimUrl = url.Replace("-", " ").ToLower();
             foreach (string key in mappingWithSpace.Keys)
