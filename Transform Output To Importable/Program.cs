@@ -11,7 +11,7 @@ namespace Transform_Output_To_Importable
     public class Program
     {
         public static string CurrentNewGen = "gen8";
-        public static string CurrentWorkingGen = "gen7";
+        public static string CurrentWorkingGen = "gen8";
 
         private static Dictionary<string, string> mapping = new Dictionary<string, string>
         {
