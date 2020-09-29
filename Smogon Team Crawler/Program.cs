@@ -110,6 +110,35 @@ namespace Smogon_Team_Crawler
                 }
             }
 
+            smogonMain = client.DownloadString("https://www.smogon.com/forums/categories/site-projects-archive.423/"); 
+            scanStartTwo = false;
+            foreach (string line in smogonMain.Split('\n'))
+            {
+                if (scanStartTwo)
+                {
+                    if (line.Contains("class=\"subNodeLink subNodeLink--forum"))
+                    {
+                        string urlName = line.Substring(line.IndexOf(">") + 1);
+                        urlName = urlName.Substring(0, urlName.IndexOf("<"));
+
+                        string url = line.Substring(line.IndexOf("\"") + 1);
+                        url = url.Substring(0, url.IndexOf("\""));
+                        url = "http://www.smogon.com" + url;
+
+                        tierToRMTLinks.Add(urlName, url);
+                    }
+                    else if (line.Contains("node-stats\""))
+                    {
+                        scanStartTwo = false;
+                        break;
+                    }
+                }
+                else if (line.Contains(">2007 - 2019 Rate My Team<"))
+                {
+                    scanStartTwo = true;
+                }
+            }
+
             if (mainForum)
             {
                 foreach (KeyValuePair<string, string> kv in tierToLinks)
@@ -132,7 +161,7 @@ namespace Smogon_Team_Crawler
                     for (int pageCount = 1; pageCount <= pages; pageCount++)
                     {
                         site = client.DownloadString(kv.Value + "page-" + pageCount);
-                        
+
                         string prefix = null;
 
                         foreach (string line in site.Split('\n'))
