@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27004.2009
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31624.102
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Smogon Team Crawler", "Smogon Team Crawler\Smogon Team Crawler.csproj", "{F04B5332-8DC5-488D-A97A-7DB9A2BE5272}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmogonTeamCrawler", "SmogonTeamCrawler\SmogonTeamCrawler.csproj", "{F04B5332-8DC5-488D-A97A-7DB9A2BE5272}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Transform Output To Importable", "Transform Output To Importable\Transform Output To Importable.csproj", "{336C2C0B-92A9-4CBB-A540-A2D17CA447FD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransformOutputToImportable", "TransformOutputToImportable\TransformOutputToImportable.csproj", "{336C2C0B-92A9-4CBB-A540-A2D17CA447FD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

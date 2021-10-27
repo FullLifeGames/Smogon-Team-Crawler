@@ -1,12 +1,11 @@
-﻿using Smogon_Team_Crawler;
+﻿using SmogonTeamCrawler.Data;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace Transform_Output_To_Importable
+namespace TransformOutputToImportable
 {
     public class Program
     {

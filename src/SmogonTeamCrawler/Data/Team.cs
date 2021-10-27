@@ -1,15 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
-namespace Smogon_Team_Crawler
+namespace SmogonTeamCrawler.Data
 {
     public class Team
     {
-        private static Regex regex = new Regex("[^0-9a-zA-Z]+");
+        private static readonly Regex _regex = new Regex("[^0-9a-zA-Z]+");
 
         public string TeamString;
         public int Likes;
@@ -27,7 +23,7 @@ namespace Smogon_Team_Crawler
         public string Definition = null;
 
         public double Koeffizient;
-        private static double koeffScale = 3;
+        private static double _koeffScale = 3;
 
         public Team(string teamString, int likes, DateTime postDate, string url, string postedBy, string prefix)
         {
@@ -37,7 +33,7 @@ namespace Smogon_Team_Crawler
             this.URL = url;
             this.PostedBy = postedBy;
             this.TeamTag = prefix;
-            this.RegexTeam = regex.Replace(teamString, "");
+            this.RegexTeam = _regex.Replace(teamString, "");
 
             CalculateKoeffizient();
         }
@@ -47,7 +43,7 @@ namespace Smogon_Team_Crawler
             this.Koeffizient = this.Likes * 
                                 (1.0 / 
                                         (
-                                            Math.Exp(koeffScale * (DateTime.Now.Subtract(this.PostDate).TotalMinutes / 60.0 / 24.0 / 365.0))
+                                            Math.Exp(_koeffScale * (DateTime.Now.Subtract(this.PostDate).TotalMinutes / 60.0 / 24.0 / 365.0))
                                         )
                                 );
         }

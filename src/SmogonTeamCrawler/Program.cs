@@ -1,37 +1,38 @@
-﻿using System;
+﻿using SmogonTeamCrawler.Data;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
-namespace Smogon_Team_Crawler
+namespace SmogonTeamCrawler
 {
 
     public class Program
     {
         public static string CurrentGen { get; set; } = "gen8";
 
-        private static bool mainForum = true;
-        private static bool rmtForum = true;
+        private static readonly bool mainForum = true;
+        private static readonly bool rmtForum = true;
 
-        private static WebClient client;
+        private static readonly WebClient _client = new WebClient();
 
-        private static string[] hardCodedBlacklistedPastes = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr" };
+        private static readonly string[] hardCodedBlacklistedPastes = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr" };
 
         public static void Main(string[] args)
         {
+            // TODO: Export to own classees
+
+            #region LinkScanner
             Dictionary<string, List<Team>> teamsForTiers = new Dictionary<string, List<Team>>();
             Dictionary<string, List<Team>> rmtForTiers = new Dictionary<string, List<Team>>();
 
             Dictionary<string, string> tierToLinks = new Dictionary<string, string>();
             Dictionary<string, string> tierToRMTLinks = new Dictionary<string, string>();
 
-            client = new WebClient();
-            string smogonMain = client.DownloadString("http://www.smogon.com/forums/");
+            string smogonMain = _client.DownloadString("https://www.smogon.com/forums/");
             bool scanStartZero = false;
             bool scanStartOne = false;
             bool scanStartTwo = false;
@@ -48,7 +49,7 @@ namespace Smogon_Team_Crawler
 
                         string tierUrl = line.Substring(line.IndexOf("\"") + 1);
                         tierUrl = tierUrl.Substring(0, tierUrl.IndexOf("\""));
-                        tierUrl = "http://www.smogon.com" + tierUrl;
+                        tierUrl = "https://www.smogon.com" + tierUrl;
 
                         tierToLinks.Add(tierName, tierUrl);
                         teamsForTiers.Add(tierName, new List<Team>());
@@ -67,7 +68,7 @@ namespace Smogon_Team_Crawler
 
                         string tierUrl = line.Substring(line.IndexOf("\"") + 1);
                         tierUrl = tierUrl.Substring(0, tierUrl.IndexOf("\""));
-                        tierUrl = "http://www.smogon.com" + tierUrl;
+                        tierUrl = "https://www.smogon.com" + tierUrl;
 
                         tierToLinks.Add(tierName, tierUrl);
                         teamsForTiers.Add(tierName, new List<Team>());
@@ -86,7 +87,7 @@ namespace Smogon_Team_Crawler
 
                         string url = line.Substring(line.IndexOf("\"") + 1);
                         url = url.Substring(0, url.IndexOf("\""));
-                        url = "http://www.smogon.com" + url;
+                        url = "https://www.smogon.com" + url;
 
                         tierToRMTLinks.Add(urlName, url);
                     }
@@ -110,7 +111,7 @@ namespace Smogon_Team_Crawler
                 }
             }
 
-            smogonMain = client.DownloadString("https://www.smogon.com/forums/categories/site-projects-archive.423/"); 
+            smogonMain = _client.DownloadString("https://www.smogon.com/forums/categories/site-projects-archive.423/"); 
             scanStartTwo = false;
             foreach (string line in smogonMain.Split('\n'))
             {
@@ -123,7 +124,7 @@ namespace Smogon_Team_Crawler
 
                         string url = line.Substring(line.IndexOf("\"") + 1);
                         url = url.Substring(0, url.IndexOf("\""));
-                        url = "http://www.smogon.com" + url;
+                        url = "https://www.smogon.com" + url;
 
                         tierToRMTLinks.Add(urlName, url);
                     }
@@ -138,12 +139,14 @@ namespace Smogon_Team_Crawler
                     scanStartTwo = true;
                 }
             }
+            #endregion
 
+            #region TeamCrawler
             if (mainForum)
             {
                 foreach (KeyValuePair<string, string> kv in tierToLinks)
                 {
-                    string site = client.DownloadString(kv.Value);
+                    string site = _client.DownloadString(kv.Value);
                     int pages = 1;
                     if (site.Contains("<nav class=\"pageNavWrapper"))
                     {
@@ -160,7 +163,7 @@ namespace Smogon_Team_Crawler
 
                     for (int pageCount = 1; pageCount <= pages; pageCount++)
                     {
-                        site = client.DownloadString(kv.Value + "page-" + pageCount);
+                        site = _client.DownloadString(kv.Value + "page-" + pageCount);
 
                         string prefix = null;
 
@@ -181,7 +184,7 @@ namespace Smogon_Team_Crawler
                                     continue;
                                 }
                                 tempInside = tempInside.Substring(0, tempInside.IndexOf("/preview") + 1);
-                                string url = "http://www.smogon.com" + tempInside;
+                                string url = "https://www.smogon.com" + tempInside;
                                 Console.WriteLine("Currently Scanning: " + url);
                                 int beforeCount = teamsForTiers[kv.Key].Count;
                                 AnalyzeTopic(url, kv.Key, teamsForTiers, prefix);
@@ -198,7 +201,7 @@ namespace Smogon_Team_Crawler
             {
                 foreach (KeyValuePair<string, string> kv in tierToRMTLinks)
                 {
-                    string site = client.DownloadString(kv.Value);
+                    string site = _client.DownloadString(kv.Value);
                     int pages = 1;
                     if (site.Contains("<nav class=\"pageNavWrapper"))
                     {
@@ -215,7 +218,7 @@ namespace Smogon_Team_Crawler
 
                     for (int pageCount = 1; pageCount <= pages; pageCount++)
                     {
-                        site = client.DownloadString(kv.Value + "page-" + pageCount);
+                        site = _client.DownloadString(kv.Value + "page-" + pageCount);
 
                         string prefix = "";
 
@@ -236,7 +239,7 @@ namespace Smogon_Team_Crawler
                                     continue;
                                 }
                                 tempInside = tempInside.Substring(0, tempInside.IndexOf("/preview") + 1);
-                                string url = "http://www.smogon.com" + tempInside;
+                                string url = "https://www.smogon.com" + tempInside;
                                 Console.WriteLine("Currently Scanning: " + url);
                                 if (!rmtForTiers.ContainsKey(prefix))
                                 {
@@ -253,7 +256,9 @@ namespace Smogon_Team_Crawler
                     }
                 }
             }
+            #endregion
 
+            #region OutputFormatter
             string output = "";
             if (mainForum)
             {
@@ -285,7 +290,7 @@ namespace Smogon_Team_Crawler
                             mon = mon.Replace(":", "");
                             lines.Add(mon + monData.Substring(monData.IndexOf("\n")));
                         }
-                        outputString = String.Join("\n\n", lines);
+                        outputString = string.Join("\n\n", lines);
                         output += lineup + ":\n" + team.URL + "\n" + team.PostedBy + "\n" + team.PostDate.ToString() + "\n" + team.Likes + " Likes\n" + team.Koeffizient + " Calculated Value\n\n" + outputString + "\n\n\n";
                     }
 
@@ -325,14 +330,16 @@ namespace Smogon_Team_Crawler
                             mon = mon.Replace(":", "");
                             lines.Add(mon + monData.Substring(monData.IndexOf("\n")));
                         }
-                        outputString = String.Join("\n\n", lines);
+                        outputString = string.Join("\n\n", lines);
                         outputRMT += lineup + ":\n" + team.URL + "\n" + team.PostedBy + "\n" + team.PostDate.ToString() + "\n" + team.Likes + " Likes\n" + team.Koeffizient + " Calculated Value\n\n" + outputString + "\n\n\n";
                     }
 
                     outputRMT += "\n";
                 }
             }
+            #endregion
 
+            #region IO
             StreamWriter sw;
             if (mainForum)
             {
@@ -355,13 +362,14 @@ namespace Smogon_Team_Crawler
                 sw.Write(outputRMT);
                 sw.Close();
             }
+            #endregion
         }
 
         private static void AnalyzeRMTTopic(string url, string prefix, Dictionary<string, List<Team>> rmtForTiers)
         {
             try
             {
-                string site = client.DownloadString(url);
+                string site = _client.DownloadString(url);
                 int pages = 1;
                 if (site.Contains("<nav class=\"pageNavWrapper"))
                 {
@@ -378,7 +386,7 @@ namespace Smogon_Team_Crawler
 
                 for (int pageCount = 1; pageCount <= pages; pageCount++)
                 {
-                    site = client.DownloadString(url + "page-" + pageCount);
+                    site = _client.DownloadString(url + "page-" + pageCount);
 
                     bool blockStarted = false;
                     string blockText = "";
@@ -463,7 +471,7 @@ namespace Smogon_Team_Crawler
         {
             try
             {
-                string site = client.DownloadString(url);
+                string site = _client.DownloadString(url);
                 int pages = 1;
                 if (site.Contains("<nav class=\"pageNavWrapper"))
                 {
@@ -480,7 +488,7 @@ namespace Smogon_Team_Crawler
 
                 for (int pageCount = 1; pageCount <= pages; pageCount++)
                 {
-                    site = client.DownloadString(url + "page-" + pageCount);
+                    site = _client.DownloadString(url + "page-" + pageCount);
 
                     bool blockStarted = false;
                     string blockText = "";
@@ -684,7 +692,7 @@ namespace Smogon_Team_Crawler
 
                         pasteUrl = pasteUrl.Substring(0, nearest);
                     }
-                    pasteUrl = "http://" + pasteUrl;
+                    pasteUrl = "https://" + pasteUrl;
                     if (!pasteUrl.Contains("/img/"))
                     {
                         string pokePasteTeam = GetTeamFromPokepasteURL(pasteUrl);
@@ -782,7 +790,7 @@ namespace Smogon_Team_Crawler
             string site = "";
             try
             {
-                site = client.DownloadString(pasteUrl);
+                site = _client.DownloadString(pasteUrl);
             }
             catch (WebException)
             { }
@@ -817,7 +825,7 @@ namespace Smogon_Team_Crawler
             string site = "";
             try
             {
-                site = client.DownloadString(pasteUrl);
+                site = _client.DownloadString(pasteUrl);
             }
             catch (WebException)
             {}
