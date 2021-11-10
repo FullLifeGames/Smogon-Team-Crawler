@@ -1,17 +1,14 @@
-﻿using SmogonTeamCrawler.Data;
+﻿using SmogonTeamCrawler.Core.Data;
+using SmogonTeamCrawler.Core.Util;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace TransformOutputToImportable
+namespace SmogonTeamCrawler.Core.Transformer
 {
-    public class Program
+    public class TeamTransformer : ITransformer
     {
-        public static string CurrentNewGen = "gen8";
-        public static string CurrentWorkingGen = "gen8";
-
         private static Dictionary<string, string> mapping = new Dictionary<string, string>
         {
             { "ss", "gen8" },
@@ -43,19 +40,11 @@ namespace TransformOutputToImportable
         };
         private static List<string> listOfTiersWithSpace = listOfTiers.Select((val) => val + " ").ToList();
 
-        public static void Main(string[] args)
+        public Dictionary<string, string> Transform(Dictionary<string, List<Team>> smogonTeams, Dictionary<string, List<Team>> rmts)
         {
-            StreamReader sr = new StreamReader("outputJson.txt");
-            Dictionary<string, List<Team>> smogonTeams = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, List<Team>>>(sr.ReadToEnd());
-            sr.Close();
+            var teamByActualTiers = new Dictionary<string, List<Team>>();
 
-            sr = new StreamReader("outputRMTJson.txt");
-            Dictionary<string, List<Team>> rmts = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, List<Team>>>(sr.ReadToEnd());
-            sr.Close();
-                        
-            Dictionary<string, List<Team>> teamByActualTiers = new Dictionary<string, List<Team>>();
-
-            foreach (KeyValuePair<string, List<Team>> tier in smogonTeams)
+            foreach (var tier in smogonTeams)
             {
                 string tierDef = tier.Key;
                 foreach (Team team in tier.Value)
@@ -84,7 +73,7 @@ namespace TransformOutputToImportable
                 }
             }
 
-            foreach (KeyValuePair<string, List<Team>> tier in rmts)
+            foreach (var tier in rmts)
             {
                 string tierDef = tier.Key;
                 foreach (Team team in tier.Value)
@@ -114,18 +103,17 @@ namespace TransformOutputToImportable
                 }
             }
 
-            foreach (KeyValuePair<string, List<Team>> kv in teamByActualTiers)
+            foreach (var kv in teamByActualTiers)
             {
                 kv.Value.Sort((t1, t2) => { return (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes); });
             }
 
-
-            Dictionary<string, string> tierOutputs = new Dictionary<string, string>();
-            string finalImportable = "";
-            int smogonTeamCount = 1;
-            foreach (KeyValuePair<string, List<Team>> tier in teamByActualTiers)
+            var tierOutputs = new Dictionary<string, string>();
+            var finalImportable = "";
+            var smogonTeamCount = 1;
+            foreach (var tier in teamByActualTiers)
             {
-                StringBuilder importable = new StringBuilder("");
+                var importable = new StringBuilder("");
                 foreach (Team team in tier.Value)
                 {
                     string tierDef = team.Definition;
@@ -152,7 +140,7 @@ namespace TransformOutputToImportable
                             lines[i] = lines[i].Substring(0, lines[i].IndexOf("]") + 1);
                         }
                     }
-                    string betterTeamString = String.Join("\n", lines);
+                    string betterTeamString = string.Join("\n", lines);
 
                     importable.Append("=== ");
                     string showdownTier = tier.Key;
@@ -176,23 +164,11 @@ namespace TransformOutputToImportable
             }
 
             tierOutputs.Add("importable", finalImportable);
-            StreamWriter sw;
-            foreach (KeyValuePair<string, string> outputs in tierOutputs)
-            {
-                string tempImportable = outputs.Value.Replace("\n", "\r\n");
-                string tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
 
-                sw = new StreamWriter(tempTier.Replace("[", "").Replace("]", "") + ".txt");
-                sw.Write(tempImportable);
-                sw.Close();
-            }
-
-            sw = new StreamWriter("finalJson.txt");
-            sw.Write(Newtonsoft.Json.JsonConvert.SerializeObject(tierOutputs));
-            sw.Close();
+            return tierOutputs;
         }
 
-        private static string TranslateSmogonTeamsTier(string tier, string url, string tag)
+        private string TranslateSmogonTeamsTier(string tier, string url, string tag)
         {
             string workingTier = tier.ToLower();
             string toWorkWithGen = GetToWorkWithGen(workingTier);
@@ -262,18 +238,18 @@ namespace TransformOutputToImportable
             return null;
         }
 
-        private static string GetToWorkWithGen(string workingTier)
+        private string GetToWorkWithGen(string workingTier)
         {
-            string toWorkWithGen = CurrentWorkingGen;
-            if (workingTier.Contains(CurrentNewGen))
+            string toWorkWithGen = Common.CurrentGen;
+            if (workingTier.Contains(Common.NewestGen))
             {
-                toWorkWithGen = CurrentNewGen;
+                toWorkWithGen = Common.NewestGen;
             }
 
             return toWorkWithGen;
         }
 
-        private static string TranslateRMTTeamsTier(string tier)
+        private string TranslateRMTTeamsTier(string tier)
         {
             string workingTier = tier.ToLower();
             string startword = "";
@@ -306,7 +282,7 @@ namespace TransformOutputToImportable
             {
                 return toWorkWithGen + "monotype";
             }
-            else if(workingTier.Contains("battle spot"))
+            else if (workingTier.Contains("battle spot"))
             {
                 return toWorkWithGen + "battlespotsingles";
             }

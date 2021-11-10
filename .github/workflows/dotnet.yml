@@ -16,8 +16,26 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: 5.0.x
+        dotnet-version: 6.0.x
     - name: Restore dependencies
       run: dotnet restore src
     - name: Build
       run: dotnet build --no-restore src
+      
+  publish:
+
+    runs-on: windows-latest
+    
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 6.0.x
+    - name: Create Package
+      run:  dotnet pack "src/SmogonTeamCrawler.Core/SmogonTeamCrawler.Core.csproj" --include-symbols -c Release
+    - name: Push Package
+      run:  dotnet nuget push "**\*.nupkg" --api-key ${{ secrets.NUGET_KEY }} --skip-duplicate -s https://api.nuget.org/v3/index.json

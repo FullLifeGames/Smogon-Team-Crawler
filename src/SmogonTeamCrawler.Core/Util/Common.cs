@@ -1,6 +1,7 @@
 ﻿using System.Net.Http;
+using System.Text.RegularExpressions;
 
-namespace SmogonTeamCrawler.Util
+namespace SmogonTeamCrawler.Core.Util
 {
     public static class Common
     {
@@ -17,11 +18,14 @@ namespace SmogonTeamCrawler.Util
             }
             set => _httpClient = value;
         }
+
         public static string CurrentGen { get; set; } = "gen8";
+        public static string NewestGen { get; set; } = CurrentGen;
 
-        public static bool mainForum = true;
-        public static bool rmtForum = true;
+        public static string[] HardCodedBlacklistedPastes = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr" };
 
-        public static string[] hardCodedBlacklistedPastes = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr" };
+        public static double KoeffScale = 3;
+
+        public static Regex TeamRegex = new("[^0-9a-zA-Z]+");
     }
 }
