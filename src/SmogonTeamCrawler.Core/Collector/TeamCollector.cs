@@ -15,30 +15,20 @@ namespace SmogonTeamCrawler.Core.Collector
         {
             var teamsForTiers = new Dictionary<string, List<Team>>();
 
-            foreach (KeyValuePair<string, string> kv in tierToLinks)
+            foreach (var kv in tierToLinks)
             {
-                string site = await Common.HttpClient.GetStringAsync(kv.Value);
-                int pages = 1;
-                if (site.Contains("<nav class=\"pageNavWrapper"))
-                {
-                    string temp = site;
-                    while (temp.Contains("pageNav-page"))
-                    {
-                        temp = temp.Substring(temp.IndexOf("pageNav-page") + "pageNav-page".Length);
-                    }
-                    temp = temp.Substring(temp.IndexOf(">") + 1);
-                    temp = temp.Substring(temp.IndexOf(">") + 1);
-                    temp = temp.Substring(0, temp.IndexOf("<"));
-                    pages = int.Parse(temp);
-                }
-
+                var pages = 1;
                 for (int pageCount = 1; pageCount <= pages; pageCount++)
                 {
-                    site = await Common.HttpClient.GetStringAsync(kv.Value + "page-" + pageCount);
+                    var site = await Common.HttpClient.GetStringAsync(kv.Value + "page-" + pageCount);
+                    if (pages == 1)
+                    {
+                        pages = GetNumberOfPages(site);
+                    }
 
-                    string prefix = "";
+                    var prefix = "";
 
-                    foreach (string line in site.Split('\n'))
+                    foreach (var line in site.Split('\n'))
                     {
                         if (line.Contains("<span class=\"label"))
                         {
@@ -76,29 +66,18 @@ namespace SmogonTeamCrawler.Core.Collector
             return teamsForTiers;
         }
 
-
         private async Task AnalyzeTopic(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, string prefix)
         {
             try
             {
-                var site = await Common.HttpClient.GetStringAsync(url);
                 var pages = 1;
-                if (site.Contains("<nav class=\"pageNavWrapper"))
-                {
-                    var temp = site;
-                    while (temp.Contains("pageNav-page"))
-                    {
-                        temp = temp[(temp.IndexOf("pageNav-page") + "pageNav-page".Length)..];
-                    }
-                    temp = temp[(temp.IndexOf(">") + 1)..];
-                    temp = temp[(temp.IndexOf(">") + 1)..];
-                    temp = temp[..temp.IndexOf("<")];
-                    pages = int.Parse(temp);
-                }
-
                 for (var pageCount = 1; pageCount <= pages; pageCount++)
                 {
-                    site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount);
+                    var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount);
+                    if (pages == 1)
+                    {
+                        pages = GetNumberOfPages(site);
+                    }
 
                     var lineDataHandler = new LineDataHandler()
                     {
@@ -132,6 +111,25 @@ namespace SmogonTeamCrawler.Core.Collector
                 Console.WriteLine("HttpRequestException bei: " + url);
                 Console.WriteLine(e.Message);
             }
+        }
+
+        private static int GetNumberOfPages(string site)
+        {
+            var pages = 1;
+            if (site.Contains("<nav class=\"pageNavWrapper"))
+            {
+                var temp = site;
+                while (temp.Contains("pageNav-page"))
+                {
+                    temp = temp[(temp.IndexOf("pageNav-page") + "pageNav-page".Length)..];
+                }
+                temp = temp[(temp.IndexOf(">") + 1)..];
+                temp = temp[(temp.IndexOf(">") + 1)..];
+                temp = temp[..temp.IndexOf("<")];
+                pages = int.Parse(temp);
+            }
+
+            return pages;
         }
 
         public class LineDataHandler

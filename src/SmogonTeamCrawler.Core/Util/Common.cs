@@ -27,5 +27,8 @@ namespace SmogonTeamCrawler.Core.Util
         public static double KoeffScale = 3;
 
         public static Regex TeamRegex = new("[^0-9a-zA-Z]+");
+
+        public static string SMOGON_FORUMS_URL { get; set; } = "https://www.smogon.com/forums/";
+        public static string ARCHIVE_URL { get; set; } = "https://www.smogon.com/forums/categories/site-projects-archive.423/";
     }
 }

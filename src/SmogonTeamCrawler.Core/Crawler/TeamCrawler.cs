@@ -43,7 +43,6 @@ namespace SmogonTeamCrawler.Core.Crawler
             {
                 teamsForTiers = await Collector.Collect(tierToLinks, false);
             }
-
             var rmtForTiers = new Dictionary<string, List<Team>>();
             if (crawlRequest.RMTForum)
             {
@@ -55,7 +54,6 @@ namespace SmogonTeamCrawler.Core.Crawler
             {
                 output = Formatter.FormatOutput(teamsForTiers);
             }
-
             var outputRMT = "";
             if (crawlRequest.RMTForum)
             {
