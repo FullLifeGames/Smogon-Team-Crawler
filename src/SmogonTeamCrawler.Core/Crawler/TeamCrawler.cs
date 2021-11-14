@@ -34,19 +34,17 @@ namespace SmogonTeamCrawler.Core.Crawler
 
         public async Task<CrawlResult> CrawlAsync(CrawlRequest crawlRequest)
         {
-            IDictionary<string, string> tierToLinks = new Dictionary<string, string>();
-            IDictionary<string, string> tierToRMTLinks = new Dictionary<string, string>();
-            await Scanner.Scan(tierToLinks, tierToRMTLinks);
+            var scanResult = await Scanner.Scan();
 
             IDictionary<string, ICollection<Team>> teamsForTiers = new Dictionary<string, ICollection<Team>>();
             if (crawlRequest.MainForum)
             {
-                teamsForTiers = await Collector.Collect(tierToLinks, false);
+                teamsForTiers = await Collector.Collect(scanResult.TierToRegularLinks, false);
             }
             IDictionary<string, ICollection<Team>> rmtForTiers = new Dictionary<string, ICollection<Team>>();
             if (crawlRequest.RMTForum)
             {
-                rmtForTiers = await Collector.Collect(tierToRMTLinks, true);
+                rmtForTiers = await Collector.Collect(scanResult.TierToRmtLinks, true);
             }
 
             var output = "";

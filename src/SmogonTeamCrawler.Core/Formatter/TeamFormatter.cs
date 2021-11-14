@@ -10,7 +10,7 @@ namespace SmogonTeamCrawler.Core.Formatter
         public string FormatOutput(IDictionary<string, ICollection<Team>> teamsForTiers)
         {
             var output = "";
-            foreach (string key in teamsForTiers.Keys.ToList())
+            foreach (var key in teamsForTiers.Keys.ToList())
             {
                 if (teamsForTiers[key].Count == 0)
                 {
@@ -34,9 +34,9 @@ namespace SmogonTeamCrawler.Core.Formatter
                             lines.Add(monData);
                             continue;
                         }
-                        string mon = monData.Substring(0, monData.IndexOf("\n"));
+                        var mon = monData[..monData.IndexOf("\n")];
                         mon = mon.Replace(":", "");
-                        lines.Add(mon + monData.Substring(monData.IndexOf("\n")));
+                        lines.Add(string.Concat(mon, monData.AsSpan(monData.IndexOf("\n"))));
                     }
                     outputString = string.Join("\n\n", lines);
                     output += lineup + ":\n" + team.URL + "\n" + team.PostedBy + "\n" + team.PostDate.ToString() + "\n" + team.Likes + " Likes\n" + team.Koeffizient + " Calculated Value\n\n" + outputString + "\n\n\n";
@@ -48,7 +48,7 @@ namespace SmogonTeamCrawler.Core.Formatter
         }
 
 
-        private List<Team> RemoveDuplicates(ICollection<Team> value)
+        private ICollection<Team> RemoveDuplicates(ICollection<Team> value)
         {
             var uniqueTeams = new List<Team>();
             foreach (var team in value)

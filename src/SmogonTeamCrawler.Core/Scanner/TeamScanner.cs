@@ -1,4 +1,5 @@
-﻿using SmogonTeamCrawler.Core.Util;
+﻿using SmogonTeamCrawler.Core.Data;
+using SmogonTeamCrawler.Core.Util;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -9,8 +10,14 @@ namespace SmogonTeamCrawler.Core.Scanner
         private const string LINE_CLASS_IDENTIFIER = "class=\"subNodeLink subNodeLink--forum";
         private const string SCAN_ENDPOINT = "node-stats\"";
 
-        public async Task Scan(IDictionary<string, string> tierToLinks, IDictionary<string, string> tierToRMTLinks)
+        public async Task<ScanResult> Scan()
         {
+            var scanResult = new ScanResult()
+            {
+                TierToRegularLinks = new Dictionary<string, string>(),
+                TierToRmtLinks = new Dictionary<string, string>(),
+            };
+
             var smogonMain = await Common.HttpClient.GetStringAsync(Common.SMOGON_FORUMS_URL);
             var scanStartZero = false;
             var scanStartOne = false;
@@ -22,7 +29,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, tierToLinks, true);
+                        GetAndAddURL(line, scanResult.TierToRegularLinks, true);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -33,7 +40,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, tierToLinks);
+                        GetAndAddURL(line, scanResult.TierToRegularLinks);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -44,7 +51,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, tierToRMTLinks);
+                        GetAndAddURL(line, scanResult.TierToRmtLinks);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -74,7 +81,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, tierToRMTLinks);
+                        GetAndAddURL(line, scanResult.TierToRmtLinks);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -87,6 +94,8 @@ namespace SmogonTeamCrawler.Core.Scanner
                     scanStartTwo = true;
                 }
             }
+
+            return scanResult;
         }
 
         private void GetAndAddURL(string line, IDictionary<string, string> addition, bool useCurrentGen = false)

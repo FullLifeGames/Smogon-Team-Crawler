@@ -14,14 +14,14 @@ namespace SmogonTeamCrawler.Core.Collector
     {
         public async Task<IDictionary<string, ICollection<Team>>> Collect(IDictionary<string, string> tierToLinks, bool prefixUsage)
         {
-            var teamsForTiers = new ConcurrentDictionary<string, ICollection<Team>>();
+            var collectedTeams = new ConcurrentDictionary<string, ICollection<Team>>();
 
             await Parallel.ForEachAsync(tierToLinks, async (kv, ct) =>
             {
-                await CollectFromForum(teamsForTiers, kv.Key, kv.Value, prefixUsage);
+                await CollectFromForum(collectedTeams, kv.Key, kv.Value, prefixUsage);
             });
 
-            return teamsForTiers;
+            return collectedTeams;
         }
 
         public async Task CollectFromForum(IDictionary<string, ICollection<Team>> collectedTeams, string tier, string url, bool prefixUsage)
@@ -61,9 +61,9 @@ namespace SmogonTeamCrawler.Core.Collector
                         {
                             collectedTeams.Add(identifier, new List<Team>());
                         }
-                        int beforeCount = collectedTeams[identifier].Count;
+                        var beforeCount = collectedTeams[identifier].Count;
                         await AnalyzeThread(collectedTeams, tier: identifier, fullUrl, prefix);
-                        int afterCount = collectedTeams[identifier].Count;
+                        var afterCount = collectedTeams[identifier].Count;
                         Console.WriteLine("Added " + (afterCount - beforeCount) + " Teams");
                         Console.WriteLine();
                         prefix = "";
@@ -74,6 +74,10 @@ namespace SmogonTeamCrawler.Core.Collector
 
         public async Task AnalyzeThread(IDictionary<string, ICollection<Team>> collectedTeams, string tier, string url, string prefix)
         {
+            if (!collectedTeams.ContainsKey(tier))
+            {
+                collectedTeams.Add(tier, new List<Team>());
+            }
             try
             {
                 var pages = 1;
@@ -114,7 +118,7 @@ namespace SmogonTeamCrawler.Core.Collector
             }
             catch (HttpRequestException e)
             {
-                Console.WriteLine("HttpRequestException bei: " + url);
+                Console.WriteLine("HttpRequestException at: " + url);
                 Console.WriteLine(e.Message);
             }
         }
@@ -176,14 +180,14 @@ namespace SmogonTeamCrawler.Core.Collector
             else if (line.StartsWith("\t</article>"))
             {
                 lineDataHandler.PostStarted = false;
-                foreach (string team in currentTeams)
+                foreach (var team in currentTeams)
                 {
-                    string tmpTeam = team;
-                    bool moreTeams = false;
+                    var tmpTeam = team;
+                    var moreTeams = false;
                     while (tmpTeam.Contains("==="))
                     {
                         moreTeams = true;
-                        string teamLine = tmpTeam[(tmpTeam.IndexOf("===") + "===".Length)..];
+                        var teamLine = tmpTeam[(tmpTeam.IndexOf("===") + "===".Length)..];
                         if (!teamLine.Contains('\n'))
                         {
                             break;
@@ -202,9 +206,9 @@ namespace SmogonTeamCrawler.Core.Collector
                             break;
                         }
 
-                        string teamTitle = teamLine[..teamLine.IndexOf("===")].Trim();
+                        var teamTitle = teamLine[..teamLine.IndexOf("===")].Trim();
 
-                        string fullTempTeam = tmpTeam[(tmpTeam.IndexOf("===") + "===".Length)..];
+                        var fullTempTeam = tmpTeam[(tmpTeam.IndexOf("===") + "===".Length)..];
                         fullTempTeam = fullTempTeam[(fullTempTeam.IndexOf("\n") + 1)..];
 
                         if (fullTempTeam.Contains("==="))

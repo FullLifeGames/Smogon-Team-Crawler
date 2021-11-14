@@ -9,7 +9,7 @@ namespace SmogonTeamCrawler.Core.Transformer
 {
     public class TeamTransformer : ITransformer
     {
-        private static Dictionary<string, string> mapping = new Dictionary<string, string>
+        private static readonly Dictionary<string, string> _mapping = new Dictionary<string, string>
         {
             { "ss", "gen8" },
             { "sm", "gen7" },
@@ -24,10 +24,10 @@ namespace SmogonTeamCrawler.Core.Transformer
             { "rby", "gen1" },
             { "stadium", "gen1" },
         };
-        private static Dictionary<string, string> mappingWithSpace = mapping.Select((val) => new KeyValuePair<string, string>(val.Key + " ", val.Value))
+        private static readonly Dictionary<string, string> _mappingWithSpace = _mapping.Select((val) => new KeyValuePair<string, string>(val.Key + " ", val.Value))
                                                                                .ToDictionary(x => x.Key, x => x.Value);
 
-        private static List<string> listOfTiers = new List<string>
+        private static readonly List<string> _listOfTiers = new List<string>
         {
             "ou",
             "uu",
@@ -38,7 +38,7 @@ namespace SmogonTeamCrawler.Core.Transformer
             "ubers",
             "doubles"
         };
-        private static List<string> listOfTiersWithSpace = listOfTiers.Select((val) => val + " ").ToList();
+        private static readonly List<string> _listOfTiersWithSpace = _listOfTiers.Select((val) => val + " ").ToList();
 
         public Dictionary<string, string> Transform(IDictionary<string, ICollection<Team>> smogonTeams, IDictionary<string, ICollection<Team>> rmts)
         {
@@ -46,10 +46,10 @@ namespace SmogonTeamCrawler.Core.Transformer
 
             foreach (var tier in smogonTeams)
             {
-                string tierDef = tier.Key;
-                foreach (Team team in tier.Value)
+                var tierDef = tier.Key;
+                foreach (var team in tier.Value)
                 {
-                    string showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL, team.TeamTag);
+                    var showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL, team.TeamTag);
                     if (showdownTier == null)
                     {
                         showdownTier = "";
@@ -75,10 +75,10 @@ namespace SmogonTeamCrawler.Core.Transformer
 
             foreach (var tier in rmts)
             {
-                string tierDef = tier.Key;
-                foreach (Team team in tier.Value)
+                var tierDef = tier.Key;
+                foreach (var team in tier.Value)
                 {
-                    string showdownTier = TranslateRMTTeamsTier(tierDef);
+                    var showdownTier = TranslateRMTTeamsTier(tierDef);
                     if (showdownTier == null)
                     {
                         team.TeamTier = "";
@@ -114,12 +114,12 @@ namespace SmogonTeamCrawler.Core.Transformer
             foreach (var tier in teamByActualTiers)
             {
                 var importable = new StringBuilder("");
-                foreach (Team team in tier.Value)
+                foreach (var team in tier.Value)
                 {
-                    string tierDef = team.Definition;
-                    string[] lines = team.TeamString.Replace("\t", "").Replace("\r", "").Split('\n');
-                    bool skipTeam = false;
-                    foreach (string line in lines)
+                    var tierDef = team.Definition;
+                    var lines = team.TeamString.Replace("\t", "").Replace("\r", "").Split('\n');
+                    var skipTeam = false;
+                    foreach (var line in lines)
                     {
                         if (line.Length > 61)
                         {
@@ -129,7 +129,7 @@ namespace SmogonTeamCrawler.Core.Transformer
                     }
                     if (skipTeam) continue;
 
-                    for (int i = 0; i < lines.Length; i++)
+                    for (var i = 0; i < lines.Length; i++)
                     {
                         if (lines[i].StartsWith("-") && lines[i].Contains("/"))
                         {
@@ -140,14 +140,14 @@ namespace SmogonTeamCrawler.Core.Transformer
                             lines[i] = lines[i].Substring(0, lines[i].IndexOf("]") + 1);
                         }
                     }
-                    string betterTeamString = string.Join("\n", lines);
+                    var betterTeamString = string.Join("\n", lines);
 
                     importable.Append("=== ");
-                    string showdownTier = tier.Key;
+                    var showdownTier = tier.Key;
                     importable.Append(showdownTier + " ");
                     importable.Append(tierDef + "/");
 
-                    string teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "") + " " + team.URL;
+                    var teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "") + " " + team.URL;
                     importable.Append(teamString);
                     Console.WriteLine(teamString);
 
@@ -170,8 +170,8 @@ namespace SmogonTeamCrawler.Core.Transformer
 
         private string TranslateSmogonTeamsTier(string tier, string url, string tag)
         {
-            string workingTier = tier.ToLower();
-            string toWorkWithGen = GetToWorkWithGen(workingTier);
+            var workingTier = tier.ToLower();
+            var toWorkWithGen = GetToWorkWithGen(workingTier);
 
             if (workingTier.Contains("overused"))
             {
@@ -214,19 +214,19 @@ namespace SmogonTeamCrawler.Core.Transformer
                 return toWorkWithGen + "battlestadiumsingles";
             }
 
-            string trimUrl = url.Replace("-", " ").ToLower();
-            foreach (string key in mappingWithSpace.Keys)
+            var trimUrl = url.Replace("-", " ").ToLower();
+            foreach (var key in _mappingWithSpace.Keys)
             {
                 if (trimUrl.Contains(key))
                 {
-                    foreach (string tierKey in listOfTiersWithSpace)
+                    foreach (var tierKey in _listOfTiersWithSpace)
                     {
                         if (trimUrl.Contains(tierKey))
                         {
-                            return mappingWithSpace[key] + tierKey.Replace(" ", "");
+                            return _mappingWithSpace[key] + tierKey.Replace(" ", "");
                         }
                     }
-                    return mappingWithSpace[key] + "ou";
+                    return _mappingWithSpace[key] + "ou";
                 }
             }
 
@@ -240,7 +240,7 @@ namespace SmogonTeamCrawler.Core.Transformer
 
         private string GetToWorkWithGen(string workingTier)
         {
-            string toWorkWithGen = Common.CurrentGen;
+            var toWorkWithGen = Common.CurrentGen;
             if (workingTier.Contains(Common.NewestGen))
             {
                 toWorkWithGen = Common.NewestGen;
@@ -251,8 +251,8 @@ namespace SmogonTeamCrawler.Core.Transformer
 
         private string TranslateRMTTeamsTier(string tier)
         {
-            string workingTier = tier.ToLower();
-            string startword = "";
+            var workingTier = tier.ToLower();
+            var startword = "";
             if (tier.Contains(" "))
             {
                 startword = workingTier.Substring(0, workingTier.IndexOf(" "));
@@ -263,10 +263,10 @@ namespace SmogonTeamCrawler.Core.Transformer
                 return workingTier.Replace(" ", "");
             }
 
-            if (mapping.ContainsKey(startword))
+            if (_mapping.ContainsKey(startword))
             {
-                string toAdd = "";
-                string checkString = workingTier.Replace(" ", "");
+                var toAdd = "";
+                var checkString = workingTier.Replace(" ", "");
                 if (checkString.Contains("doubles"))
                 {
                     if (!checkString.Contains("doublesou") && !checkString.Contains("doublesuu") && !checkString.Contains("doublesubers"))
@@ -274,10 +274,10 @@ namespace SmogonTeamCrawler.Core.Transformer
                         toAdd = "ou";
                     }
                 }
-                return mapping[startword] + workingTier.Substring(workingTier.IndexOf(" ") + 1).Replace(" ", "") + toAdd;
+                return _mapping[startword] + workingTier.Substring(workingTier.IndexOf(" ") + 1).Replace(" ", "") + toAdd;
             }
 
-            string toWorkWithGen = GetToWorkWithGen(workingTier);
+            var toWorkWithGen = GetToWorkWithGen(workingTier);
             if (workingTier.Contains("monotype"))
             {
                 return toWorkWithGen + "monotype";
