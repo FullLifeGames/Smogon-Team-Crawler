@@ -1,6 +1,7 @@
 ﻿using SmogonTeamCrawler.Core.Data;
 using SmogonTeamCrawler.Core.Util;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
@@ -11,62 +12,67 @@ namespace SmogonTeamCrawler.Core.Collector
 {
     public class TeamCollector : ICollector
     {
-        public async Task<Dictionary<string, List<Team>>> Collect(Dictionary<string, string> tierToLinks, bool prefixUsage)
+        public async Task<IDictionary<string, ICollection<Team>>> Collect(IDictionary<string, string> tierToLinks, bool prefixUsage)
         {
-            var teamsForTiers = new Dictionary<string, List<Team>>();
+            var teamsForTiers = new ConcurrentDictionary<string, ICollection<Team>>();
 
-            foreach (var kv in tierToLinks)
+            await Parallel.ForEachAsync(tierToLinks, async (kv, ct) =>
             {
-                var pages = 1;
-                for (int pageCount = 1; pageCount <= pages; pageCount++)
-                {
-                    var site = await Common.HttpClient.GetStringAsync(kv.Value + "page-" + pageCount);
-                    if (pages == 1)
-                    {
-                        pages = GetNumberOfPages(site);
-                    }
-
-                    var prefix = "";
-
-                    foreach (var line in site.Split('\n'))
-                    {
-                        if (line.Contains("<span class=\"label"))
-                        {
-                            prefix = line.Substring(line.IndexOf("<span class=\"label") + 1);
-                            prefix = prefix.Substring(prefix.IndexOf(">") + 1);
-                            prefix = prefix.Substring(0, prefix.IndexOf("<"));
-                        }
-                        else if (line.Contains("data-preview-url"))
-                        {
-                            string tempInside = line.Substring(line.IndexOf("data-preview-url") + "data-preview-url".Length);
-                            tempInside = tempInside.Substring(tempInside.IndexOf("\"") + 1);
-                            if (!tempInside.Contains("/preview"))
-                            {
-                                continue;
-                            }
-                            tempInside = tempInside.Substring(0, tempInside.IndexOf("/preview") + 1);
-                            string url = "https://www.smogon.com" + tempInside;
-                            Console.WriteLine("Currently Scanning: " + url);
-                            var identifier = (prefixUsage) ? prefix : kv.Key;
-                            if (!teamsForTiers.ContainsKey(identifier))
-                            {
-                                teamsForTiers.Add(identifier, new List<Team>());
-                            }
-                            int beforeCount = teamsForTiers[identifier].Count;
-                            await AnalyzeTopic(url, tier: identifier, teamsForTiers, prefix);
-                            int afterCount = teamsForTiers[identifier].Count;
-                            Console.WriteLine("Added " + (afterCount - beforeCount) + " Teams");
-                            Console.WriteLine();
-                            prefix = "";
-                        }
-                    }
-                }
-            }
+                await CollectFromForum(teamsForTiers, kv.Key, kv.Value, prefixUsage);
+            });
 
             return teamsForTiers;
         }
 
-        private async Task AnalyzeTopic(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, string prefix)
+        public async Task CollectFromForum(IDictionary<string, ICollection<Team>> collectedTeams, string tier, string url, bool prefixUsage)
+        {
+            var pages = 1;
+            for (var pageCount = 1; pageCount <= pages; pageCount++)
+            {
+                var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount);
+                if (pages == 1)
+                {
+                    pages = GetNumberOfPages(site);
+                }
+
+                var prefix = "";
+
+                foreach (var line in site.Split('\n'))
+                {
+                    if (line.Contains("<span class=\"label"))
+                    {
+                        prefix = line[(line.IndexOf("<span class=\"label") + 1)..];
+                        prefix = prefix[(prefix.IndexOf(">") + 1)..];
+                        prefix = prefix[..prefix.IndexOf("<")];
+                    }
+                    else if (line.Contains("data-preview-url"))
+                    {
+                        var tempInside = line[(line.IndexOf("data-preview-url") + "data-preview-url".Length)..];
+                        tempInside = tempInside[(tempInside.IndexOf("\"") + 1)..];
+                        if (!tempInside.Contains("/preview"))
+                        {
+                            continue;
+                        }
+                        tempInside = tempInside[..(tempInside.IndexOf("/preview") + 1)];
+                        var fullUrl = "https://www.smogon.com" + tempInside;
+                        Console.WriteLine("Currently Scanning: " + fullUrl);
+                        var identifier = (prefixUsage) ? prefix : tier;
+                        if (!collectedTeams.ContainsKey(identifier))
+                        {
+                            collectedTeams.Add(identifier, new List<Team>());
+                        }
+                        int beforeCount = collectedTeams[identifier].Count;
+                        await AnalyzeThread(collectedTeams, tier: identifier, fullUrl, prefix);
+                        int afterCount = collectedTeams[identifier].Count;
+                        Console.WriteLine("Added " + (afterCount - beforeCount) + " Teams");
+                        Console.WriteLine();
+                        prefix = "";
+                    }
+                }
+            }
+        }
+
+        public async Task AnalyzeThread(IDictionary<string, ICollection<Team>> collectedTeams, string tier, string url, string prefix)
         {
             try
             {
@@ -102,7 +108,7 @@ namespace SmogonTeamCrawler.Core.Collector
 
                     foreach (var line in site.Split('\n'))
                     {
-                        await HandleLine(url, tier, teamsForTiers, pageCount, currentTeams, line, prefix, lineDataHandler);
+                        await HandleLine(url, tier, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler);
                     }
                 }
             }
@@ -146,7 +152,7 @@ namespace SmogonTeamCrawler.Core.Collector
             public bool TimerHeader { get; set; }
         }
 
-        private async Task HandleLine(string url, string tier, Dictionary<string, List<Team>> teamsForTiers, int pageCount, List<string> currentTeams, string line, string prefix, LineDataHandler lineDataHandler)
+        private async Task HandleLine(string url, string tier, IDictionary<string, ICollection<Team>> collectedTeams, int pageCount, ICollection<string> currentTeams, string line, string prefix, LineDataHandler lineDataHandler)
         {
             if (!lineDataHandler.PostStarted)
             {
@@ -211,7 +217,7 @@ namespace SmogonTeamCrawler.Core.Collector
                             TeamTier = teamTier,
                             TeamTitle = teamTitle
                         };
-                        teamsForTiers[tier].Add(teamObject);
+                        collectedTeams[tier].Add(teamObject);
 
                         tmpTeam = tmpTeam.Substring(tmpTeam.IndexOf("===") + "===".Length);
                         tmpTeam = tmpTeam.Substring(tmpTeam.IndexOf("\n") + 1);
@@ -224,7 +230,7 @@ namespace SmogonTeamCrawler.Core.Collector
                     if (!moreTeams)
                     {
                         var teamObject = new Team(team, lineDataHandler.PostLikes, lineDataHandler.PostDate, url + "page-" + pageCount + "#" + lineDataHandler.PostLink, lineDataHandler.PostedBy, prefix);
-                        teamsForTiers[tier].Add(teamObject);
+                        collectedTeams[tier].Add(teamObject);
                     }
                 }
                 currentTeams.Clear();
@@ -355,12 +361,12 @@ namespace SmogonTeamCrawler.Core.Collector
         {
             if (pasteUrl.Contains(' ') || pasteUrl.Contains('"') || pasteUrl.Contains('<'))
             {
-                int nearest = int.MaxValue;
-                int space = pasteUrl.IndexOf(" ");
-                int quotation = pasteUrl.IndexOf("\"");
-                int arrow = pasteUrl.IndexOf("<");
+                var nearest = int.MaxValue;
+                var space = pasteUrl.IndexOf(" ");
+                var quotation = pasteUrl.IndexOf("\"");
+                var arrow = pasteUrl.IndexOf("<");
 
-                foreach (int pos in new int[] { space, quotation, arrow })
+                foreach (var pos in new int[] { space, quotation, arrow })
                 {
                     if (pos != -1 && pos < nearest)
                     {
@@ -381,8 +387,8 @@ namespace SmogonTeamCrawler.Core.Collector
             var pasteString = await GetTeamFromBinURL(pasteUrl);
             if (IsTeam(pasteString))
             {
-                bool blackListed = false;
-                foreach (string urlPart in Common.HardCodedBlacklistedPastes)
+                var blackListed = false;
+                foreach (var urlPart in Common.HardCodedBlacklistedPastes)
                 {
                     if (pasteUrl.Contains(urlPart))
                     {
@@ -397,9 +403,11 @@ namespace SmogonTeamCrawler.Core.Collector
             return null;
         }
 
+        private readonly Regex htmlRemoverRegex = new("<.*?>");
+
         private async Task<string> GetTeamFromPokepasteURL(string pasteUrl)
         {
-            string site = "";
+            var site = "";
             try
             {
                 site = await Common.HttpClient.GetStringAsync(pasteUrl);
@@ -407,11 +415,11 @@ namespace SmogonTeamCrawler.Core.Collector
             catch (HttpRequestException)
             { }
 
-            string team = "";
+            var team = "";
 
-            bool addLines = false;
+            var addLines = false;
 
-            foreach (string line in site.Split('\n'))
+            foreach (var line in site.Split('\n'))
             {
                 if (line.Contains("<pre>"))
                 {
@@ -427,14 +435,14 @@ namespace SmogonTeamCrawler.Core.Collector
                 }
             }
 
-            team = Regex.Replace(team, "<.*?>", string.Empty);
+            team = htmlRemoverRegex.Replace(team, string.Empty);
 
             return team;
         }
 
         private async Task<string> GetTeamFromBinURL(string pasteUrl)
         {
-            string site = "";
+            var site = "";
             try
             {
                 site = await Common.HttpClient.GetStringAsync(pasteUrl);
@@ -442,18 +450,18 @@ namespace SmogonTeamCrawler.Core.Collector
             catch (HttpRequestException)
             { }
 
-            string team = Regex.Replace(site, "<.*?>", string.Empty);
+            var team = htmlRemoverRegex.Replace(site, string.Empty);
 
             return team;
         }
 
-        private Regex doubleRowRegex = new(@"\n\n");
+        private readonly Regex doubleRowRegex = new(@"\n\n");
 
         private bool IsTeam(string blockText)
         {
-            string[] split = doubleRowRegex.Split(blockText.Replace("\r", ""));
-            int countFullMoves = 0;
-            foreach (string mon in split)
+            var split = doubleRowRegex.Split(blockText.Replace("\r", ""));
+            var countFullMoves = 0;
+            foreach (var mon in split)
             {
                 if (CountOccurences(mon, "\n- ") >= 4)
                 {

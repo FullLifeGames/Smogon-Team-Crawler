@@ -40,7 +40,7 @@ namespace SmogonTeamCrawler.Core.Transformer
         };
         private static List<string> listOfTiersWithSpace = listOfTiers.Select((val) => val + " ").ToList();
 
-        public Dictionary<string, string> Transform(Dictionary<string, List<Team>> smogonTeams, Dictionary<string, List<Team>> rmts)
+        public Dictionary<string, string> Transform(IDictionary<string, ICollection<Team>> smogonTeams, IDictionary<string, ICollection<Team>> rmts)
         {
             var teamByActualTiers = new Dictionary<string, List<Team>>();
 

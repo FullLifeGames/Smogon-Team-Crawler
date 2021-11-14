@@ -5,6 +5,6 @@ namespace SmogonTeamCrawler.Core.Formatter
 {
     public interface IFormatter
     {
-        public string FormatOutput(Dictionary<string, List<Team>> teamsForTiers);
+        public string FormatOutput(IDictionary<string, ICollection<Team>> teamsForTiers);
     }
 }

@@ -9,7 +9,7 @@ namespace SmogonTeamCrawler.Core.Scanner
         private const string LINE_CLASS_IDENTIFIER = "class=\"subNodeLink subNodeLink--forum";
         private const string SCAN_ENDPOINT = "node-stats\"";
 
-        public async Task Scan(Dictionary<string, string> tierToLinks, Dictionary<string, string> tierToRMTLinks)
+        public async Task Scan(IDictionary<string, string> tierToLinks, IDictionary<string, string> tierToRMTLinks)
         {
             var smogonMain = await Common.HttpClient.GetStringAsync(Common.SMOGON_FORUMS_URL);
             var scanStartZero = false;
@@ -89,7 +89,7 @@ namespace SmogonTeamCrawler.Core.Scanner
             }
         }
 
-        private void GetAndAddURL(string line, Dictionary<string, string> addition, bool useCurrentGen = false)
+        private void GetAndAddURL(string line, IDictionary<string, string> addition, bool useCurrentGen = false)
         {
             var urlName = line[(line.IndexOf(">") + 1)..];
             urlName = urlName[..urlName.IndexOf("<")];

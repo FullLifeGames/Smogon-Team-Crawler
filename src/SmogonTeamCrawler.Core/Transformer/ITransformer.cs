@@ -5,6 +5,6 @@ namespace SmogonTeamCrawler.Core.Transformer
 {
     public interface ITransformer
     {
-        public Dictionary<string, string> Transform(Dictionary<string, List<Team>> smogonTeams, Dictionary<string, List<Team>> rmts);
+        public Dictionary<string, string> Transform(IDictionary<string, ICollection<Team>> smogonTeams, IDictionary<string, ICollection<Team>> rmts);
     }
 }
