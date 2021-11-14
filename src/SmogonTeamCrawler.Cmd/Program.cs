@@ -6,39 +6,44 @@ var crawlRequest = new SmogonTeamCrawler.Core.Data.CrawlRequest()
 };
 var crawlResult = await teamCrawler.CrawlAsync(crawlRequest);
 
-StreamWriter sw;
 if (crawlRequest.MainForum)
 {
-    sw = new StreamWriter("outputJson.txt");
-    sw.Write(Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.SmogonTeams));
-    sw.Close();
+    await File.WriteAllTextAsync(
+        "outputJson.txt", 
+        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.SmogonTeams)
+    );
 
-    sw = new StreamWriter("output.txt");
-    sw.Write(crawlResult.SmogonOutput);
-    sw.Close();
+    await File.WriteAllTextAsync(
+        "output.txt",
+        crawlResult.SmogonOutput
+    );
 }
 
 if (crawlRequest.RMTForum)
 {
-    sw = new StreamWriter("outputRMTJson.txt");
-    sw.Write(Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.Rmts));
-    sw.Close();
+    await File.WriteAllTextAsync(
+        "outputRMTJson.txt",
+        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.Rmts)
+    );
 
-    sw = new StreamWriter("outputRMT.txt");
-    sw.Write(crawlResult.RmtsOutput);
-    sw.Close();
+    await File.WriteAllTextAsync(
+        "outputRMT.txt",
+        crawlResult.RmtsOutput
+    );
 }
 
-foreach (KeyValuePair<string, string> outputs in crawlResult.TeamsByTier)
+foreach (var outputs in crawlResult.TeamsByTier)
 {
     var tempImportable = outputs.Value.Replace("\n", "\r\n");
     var tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
 
-    sw = new StreamWriter(tempTier.Replace("[", "").Replace("]", "") + ".txt");
-    sw.Write(tempImportable);
-    sw.Close();
+    await File.WriteAllTextAsync(
+        tempTier.Replace("[", "").Replace("]", "") + ".txt",
+        tempImportable
+    );
 }
 
-sw = new StreamWriter("finalJson.txt");
-sw.Write(Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier));
-sw.Close();
+await File.WriteAllTextAsync(
+    "finalJson.txt",
+    Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
+);
