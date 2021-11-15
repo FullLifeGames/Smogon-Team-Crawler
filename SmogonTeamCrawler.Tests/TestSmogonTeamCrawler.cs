@@ -47,6 +47,26 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public void Crawl_Single_DPP()
+        {
+            var collectedTeams = new Dictionary<string, ICollection<Team>>();
+
+            _teamCrawler.Collector.AnalyzeThread(
+                collectedTeams,
+                "gen4ou",
+                "https://www.smogon.com/forums/threads/dpp-post-dugtrio-ban.3672744/",
+                "gen4ou"
+            ).Wait();
+            Assert.IsTrue(collectedTeams.Any());
+
+            var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
+            Assert.IsTrue(output.Length > 0);
+
+            var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
+            Assert.IsTrue(transformation.Any());
+        }
+
+        [Test]
         [Explicit]
         public void Crawl_Full()
         {

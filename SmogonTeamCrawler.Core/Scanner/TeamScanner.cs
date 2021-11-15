@@ -67,6 +67,10 @@ namespace SmogonTeamCrawler.Core.Scanner
                 {
                     scanStartOne = true;
                 }
+                else if (line.Contains("Ruins of Alph"))
+                {
+                    scanStartOne = true;
+                }
                 else if (line.Contains(">Rate My Team<"))
                 {
                     scanStartTwo = true;
