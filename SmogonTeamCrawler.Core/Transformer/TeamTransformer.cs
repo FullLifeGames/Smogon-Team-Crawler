@@ -1,19 +1,15 @@
-﻿using Smogon_Team_Crawler;
+﻿using SmogonTeamCrawler.Core.Data;
+using SmogonTeamCrawler.Core.Util;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace Transform_Output_To_Importable
+namespace SmogonTeamCrawler.Core.Transformer
 {
-    public class Program
+    public class TeamTransformer : ITransformer
     {
-        public static string CurrentNewGen = "gen8";
-        public static string CurrentWorkingGen = "gen8";
-
-        private static Dictionary<string, string> mapping = new Dictionary<string, string>
+        private static readonly Dictionary<string, string> _mapping = new Dictionary<string, string>
         {
             { "ss", "gen8" },
             { "sm", "gen7" },
@@ -28,10 +24,10 @@ namespace Transform_Output_To_Importable
             { "rby", "gen1" },
             { "stadium", "gen1" },
         };
-        private static Dictionary<string, string> mappingWithSpace = mapping.Select((val) => new KeyValuePair<string, string>(val.Key + " ", val.Value))
+        private static readonly Dictionary<string, string> _mappingWithSpace = _mapping.Select((val) => new KeyValuePair<string, string>(val.Key + " ", val.Value))
                                                                                .ToDictionary(x => x.Key, x => x.Value);
 
-        private static List<string> listOfTiers = new List<string>
+        private static readonly List<string> _listOfTiers = new List<string>
         {
             "ou",
             "uu",
@@ -42,26 +38,18 @@ namespace Transform_Output_To_Importable
             "ubers",
             "doubles"
         };
-        private static List<string> listOfTiersWithSpace = listOfTiers.Select((val) => val + " ").ToList();
+        private static readonly List<string> _listOfTiersWithSpace = _listOfTiers.Select((val) => val + " ").ToList();
 
-        public static void Main(string[] args)
+        public Dictionary<string, string> Transform(IDictionary<string, ICollection<Team>> smogonTeams, IDictionary<string, ICollection<Team>> rmts)
         {
-            StreamReader sr = new StreamReader("outputJson.txt");
-            Dictionary<string, List<Team>> smogonTeams = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, List<Team>>>(sr.ReadToEnd());
-            sr.Close();
+            var teamByActualTiers = new Dictionary<string, List<Team>>();
 
-            sr = new StreamReader("outputRMTJson.txt");
-            Dictionary<string, List<Team>> rmts = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, List<Team>>>(sr.ReadToEnd());
-            sr.Close();
-                        
-            Dictionary<string, List<Team>> teamByActualTiers = new Dictionary<string, List<Team>>();
-
-            foreach (KeyValuePair<string, List<Team>> tier in smogonTeams)
+            foreach (var tier in smogonTeams)
             {
-                string tierDef = tier.Key;
-                foreach (Team team in tier.Value)
+                var tierDef = tier.Key;
+                foreach (var team in tier.Value)
                 {
-                    string showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL, team.TeamTag);
+                    var showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL, team.TeamTag);
                     if (showdownTier == null)
                     {
                         showdownTier = "";
@@ -85,12 +73,12 @@ namespace Transform_Output_To_Importable
                 }
             }
 
-            foreach (KeyValuePair<string, List<Team>> tier in rmts)
+            foreach (var tier in rmts)
             {
-                string tierDef = tier.Key;
-                foreach (Team team in tier.Value)
+                var tierDef = tier.Key;
+                foreach (var team in tier.Value)
                 {
-                    string showdownTier = TranslateRMTTeamsTier(tierDef);
+                    var showdownTier = TranslateRMTTeamsTier(tierDef);
                     if (showdownTier == null)
                     {
                         team.TeamTier = "";
@@ -115,24 +103,23 @@ namespace Transform_Output_To_Importable
                 }
             }
 
-            foreach (KeyValuePair<string, List<Team>> kv in teamByActualTiers)
+            foreach (var kv in teamByActualTiers)
             {
                 kv.Value.Sort((t1, t2) => { return (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes); });
             }
 
-
-            Dictionary<string, string> tierOutputs = new Dictionary<string, string>();
-            string finalImportable = "";
-            int smogonTeamCount = 1;
-            foreach (KeyValuePair<string, List<Team>> tier in teamByActualTiers)
+            var tierOutputs = new Dictionary<string, string>();
+            var finalImportable = "";
+            var smogonTeamCount = 1;
+            foreach (var tier in teamByActualTiers)
             {
-                StringBuilder importable = new StringBuilder("");
-                foreach (Team team in tier.Value)
+                var importable = new StringBuilder("");
+                foreach (var team in tier.Value)
                 {
-                    string tierDef = team.Definition;
-                    string[] lines = team.TeamString.Replace("\t", "").Replace("\r", "").Split('\n');
-                    bool skipTeam = false;
-                    foreach (string line in lines)
+                    var tierDef = team.Definition;
+                    var lines = team.TeamString.Replace("\t", "").Replace("\r", "").Split('\n');
+                    var skipTeam = false;
+                    foreach (var line in lines)
                     {
                         if (line.Length > 61)
                         {
@@ -142,7 +129,7 @@ namespace Transform_Output_To_Importable
                     }
                     if (skipTeam) continue;
 
-                    for (int i = 0; i < lines.Length; i++)
+                    for (var i = 0; i < lines.Length; i++)
                     {
                         if (lines[i].StartsWith("-") && lines[i].Contains("/"))
                         {
@@ -153,14 +140,14 @@ namespace Transform_Output_To_Importable
                             lines[i] = lines[i].Substring(0, lines[i].IndexOf("]") + 1);
                         }
                     }
-                    string betterTeamString = String.Join("\n", lines);
+                    var betterTeamString = string.Join("\n", lines);
 
                     importable.Append("=== ");
-                    string showdownTier = tier.Key;
+                    var showdownTier = tier.Key;
                     importable.Append(showdownTier + " ");
                     importable.Append(tierDef + "/");
 
-                    string teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "") + " " + team.URL;
+                    var teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "") + " " + team.URL;
                     importable.Append(teamString);
                     Console.WriteLine(teamString);
 
@@ -177,26 +164,14 @@ namespace Transform_Output_To_Importable
             }
 
             tierOutputs.Add("importable", finalImportable);
-            StreamWriter sw;
-            foreach (KeyValuePair<string, string> outputs in tierOutputs)
-            {
-                string tempImportable = outputs.Value.Replace("\n", "\r\n");
-                string tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
 
-                sw = new StreamWriter(tempTier.Replace("[", "").Replace("]", "") + ".txt");
-                sw.Write(tempImportable);
-                sw.Close();
-            }
-
-            sw = new StreamWriter("finalJson.txt");
-            sw.Write(Newtonsoft.Json.JsonConvert.SerializeObject(tierOutputs));
-            sw.Close();
+            return tierOutputs;
         }
 
-        private static string TranslateSmogonTeamsTier(string tier, string url, string tag)
+        private string TranslateSmogonTeamsTier(string tier, string url, string tag)
         {
-            string workingTier = tier.ToLower();
-            string toWorkWithGen = GetToWorkWithGen(workingTier);
+            var workingTier = tier.ToLower();
+            var toWorkWithGen = GetToWorkWithGen(workingTier);
 
             if (workingTier.Contains("overused"))
             {
@@ -239,19 +214,19 @@ namespace Transform_Output_To_Importable
                 return toWorkWithGen + "battlestadiumsingles";
             }
 
-            string trimUrl = url.Replace("-", " ").ToLower();
-            foreach (string key in mappingWithSpace.Keys)
+            var trimUrl = url.Replace("-", " ").ToLower();
+            foreach (var key in _mappingWithSpace.Keys)
             {
                 if (trimUrl.Contains(key))
                 {
-                    foreach (string tierKey in listOfTiersWithSpace)
+                    foreach (var tierKey in _listOfTiersWithSpace)
                     {
                         if (trimUrl.Contains(tierKey))
                         {
-                            return mappingWithSpace[key] + tierKey.Replace(" ", "");
+                            return _mappingWithSpace[key] + tierKey.Replace(" ", "");
                         }
                     }
-                    return mappingWithSpace[key] + "ou";
+                    return _mappingWithSpace[key] + "ou";
                 }
             }
 
@@ -263,21 +238,21 @@ namespace Transform_Output_To_Importable
             return null;
         }
 
-        private static string GetToWorkWithGen(string workingTier)
+        private string GetToWorkWithGen(string workingTier)
         {
-            string toWorkWithGen = CurrentWorkingGen;
-            if (workingTier.Contains(CurrentNewGen))
+            var toWorkWithGen = Common.CurrentGen;
+            if (workingTier.Contains(Common.NewestGen))
             {
-                toWorkWithGen = CurrentNewGen;
+                toWorkWithGen = Common.NewestGen;
             }
 
             return toWorkWithGen;
         }
 
-        private static string TranslateRMTTeamsTier(string tier)
+        private string TranslateRMTTeamsTier(string tier)
         {
-            string workingTier = tier.ToLower();
-            string startword = "";
+            var workingTier = tier.ToLower();
+            var startword = "";
             if (tier.Contains(" "))
             {
                 startword = workingTier.Substring(0, workingTier.IndexOf(" "));
@@ -288,10 +263,10 @@ namespace Transform_Output_To_Importable
                 return workingTier.Replace(" ", "");
             }
 
-            if (mapping.ContainsKey(startword))
+            if (_mapping.ContainsKey(startword))
             {
-                string toAdd = "";
-                string checkString = workingTier.Replace(" ", "");
+                var toAdd = "";
+                var checkString = workingTier.Replace(" ", "");
                 if (checkString.Contains("doubles"))
                 {
                     if (!checkString.Contains("doublesou") && !checkString.Contains("doublesuu") && !checkString.Contains("doublesubers"))
@@ -299,15 +274,15 @@ namespace Transform_Output_To_Importable
                         toAdd = "ou";
                     }
                 }
-                return mapping[startword] + workingTier.Substring(workingTier.IndexOf(" ") + 1).Replace(" ", "") + toAdd;
+                return _mapping[startword] + workingTier.Substring(workingTier.IndexOf(" ") + 1).Replace(" ", "") + toAdd;
             }
 
-            string toWorkWithGen = GetToWorkWithGen(workingTier);
+            var toWorkWithGen = GetToWorkWithGen(workingTier);
             if (workingTier.Contains("monotype"))
             {
                 return toWorkWithGen + "monotype";
             }
-            else if(workingTier.Contains("battle spot"))
+            else if (workingTier.Contains("battle spot"))
             {
                 return toWorkWithGen + "battlespotsingles";
             }

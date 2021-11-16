@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+	<Description>Goes through http://www.smogon.com/forums/ and saves all teams it finds.</Description>
+	<Authors>FullLifeGames</Authors>
+	<Copyright>FullLifeGames</Copyright>
+	<PackageProjectUrl>https://github.com/FullLifeGames/Smogon-Team-Crawler</PackageProjectUrl>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	<RepositoryUrl>https://github.com/FullLifeGames/Smogon-Team-Crawler</RepositoryUrl>
+	<PackageTags>Smogon Pokémon Team Crawler</PackageTags>
+	<RepositoryType>GitHub</RepositoryType>
+	<PackageVersion>1.0.0</PackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+  </ItemGroup>
+</Project>
