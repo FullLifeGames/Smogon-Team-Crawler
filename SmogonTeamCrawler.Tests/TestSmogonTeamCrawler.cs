@@ -67,6 +67,54 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public void Crawl_Single_BDSP()
+        {
+            var scanResult = new Dictionary<string, string>() { { "BDSP Metagames", "https://www.smogon.com/forums/forums/bdsp-metagames.699/" } };
+
+            var collectedTeams = _teamCrawler.Collector.Collect(scanResult, false).Result;
+            Assert.IsTrue(collectedTeams.Any());
+
+            var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
+            Assert.IsTrue(output.Length > 0);
+
+            var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
+            Assert.IsTrue(transformation.Any());
+            Assert.IsTrue(transformation.Keys.Any((key) => key.Contains("gen8bdsp")));
+        }
+
+        [Test]
+        public void Crawl_Single_National_Dex()
+        {
+            var scanResult = new Dictionary<string, string>() { { "National Dex", "https://www.smogon.com/forums/forums/national-dex.533/" } };
+
+            var collectedTeams = _teamCrawler.Collector.Collect(scanResult, false).Result;
+            Assert.IsTrue(collectedTeams.Any());
+
+            var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
+            Assert.IsTrue(output.Length > 0);
+
+            var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
+            Assert.IsTrue(transformation.Any());
+            Assert.IsTrue(transformation.Keys.Any((key) => key.Contains("gen8nationaldex")));
+        }
+
+        [Test]
+        public void Crawl_Single_Lets_Go()
+        {
+            var scanResult = new Dictionary<string, string>() { { "SM", "https://www.smogon.com/forums/forums/sm/" } };
+
+            var collectedTeams = _teamCrawler.Collector.Collect(scanResult, false).Result;
+            Assert.IsTrue(collectedTeams.Any());
+
+            var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
+            Assert.IsTrue(output.Length > 0);
+
+            var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
+            Assert.IsTrue(transformation.Any());
+            Assert.IsTrue(transformation.Keys.Any((key) => key.Contains("gen7letsgo")));
+        }
+
+        [Test]
         [Explicit]
         public void Crawl_Full()
         {

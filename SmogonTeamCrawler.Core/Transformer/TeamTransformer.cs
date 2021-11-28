@@ -9,9 +9,13 @@ namespace SmogonTeamCrawler.Core.Transformer
 {
     public class TeamTransformer : ITransformer
     {
-        private static readonly Dictionary<string, string> _mapping = new Dictionary<string, string>
+        private static readonly IDictionary<string, string> _mapping = new Dictionary<string, string>
         {
+            { "bdsp", "gen8bdsp" },
+            { "national dex", "gen8nationaldex" },
             { "ss", "gen8" },
+            { "lets go", "gen7letsgo" },
+            { "lgpe", "gen7letsgo" },
             { "sm", "gen7" },
             { "oras", "gen6" },
             { "xy", "gen6" },
@@ -24,10 +28,10 @@ namespace SmogonTeamCrawler.Core.Transformer
             { "rby", "gen1" },
             { "stadium", "gen1" },
         };
-        private static readonly Dictionary<string, string> _mappingWithSpace = _mapping.Select((val) => new KeyValuePair<string, string>(val.Key + " ", val.Value))
-                                                                               .ToDictionary(x => x.Key, x => x.Value);
+        private static readonly IDictionary<string, string> _mappingWithSpace = _mapping.Select((val) => new KeyValuePair<string, string>(val.Key + " ", val.Value))
+                                                                                        .ToDictionary(x => x.Key, x => x.Value);
 
-        private static readonly List<string> _listOfTiers = new List<string>
+        private static readonly IEnumerable<string> _listOfTiers = new List<string>
         {
             "ou",
             "uu",
@@ -38,9 +42,11 @@ namespace SmogonTeamCrawler.Core.Transformer
             "ubers",
             "doubles"
         };
-        private static readonly List<string> _listOfTiersWithSpace = _listOfTiers.Select((val) => val + " ").ToList();
+        private static readonly IEnumerable<string> _listOfTiersWithSpace = _listOfTiers.Select((val) => val + " ");
+        private static readonly IEnumerable<string> _listOfTiersWithDot = _listOfTiers.Select((val) => val + ".");
+        private static readonly IEnumerable<string> _listOfTiersWithAddition = _listOfTiersWithSpace.Concat(_listOfTiersWithDot);
 
-        public Dictionary<string, string> Transform(IDictionary<string, ICollection<Team>> smogonTeams, IDictionary<string, ICollection<Team>> rmts)
+        public IDictionary<string, string> Transform(IDictionary<string, ICollection<Team>> smogonTeams, IDictionary<string, ICollection<Team>> rmts)
         {
             var teamByActualTiers = new Dictionary<string, List<Team>>();
 
@@ -219,11 +225,11 @@ namespace SmogonTeamCrawler.Core.Transformer
             {
                 if (trimUrl.Contains(key))
                 {
-                    foreach (var tierKey in _listOfTiersWithSpace)
+                    foreach (var tierKey in _listOfTiersWithAddition)
                     {
                         if (trimUrl.Contains(tierKey))
                         {
-                            return _mappingWithSpace[key] + tierKey.Replace(" ", "");
+                            return _mappingWithSpace[key] + tierKey.Replace(" ", "").Replace(".", "");
                         }
                     }
                     return _mappingWithSpace[key] + "ou";
