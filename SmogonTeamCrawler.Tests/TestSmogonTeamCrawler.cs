@@ -67,6 +67,7 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        [Explicit]
         public void Crawl_Single_BDSP()
         {
             var scanResult = new Dictionary<string, string>() { { "BDSP Metagames", "https://www.smogon.com/forums/forums/bdsp-metagames.699/" } };
@@ -83,6 +84,7 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        [Explicit]
         public void Crawl_Single_National_Dex()
         {
             var scanResult = new Dictionary<string, string>() { { "National Dex", "https://www.smogon.com/forums/forums/national-dex.533/" } };
@@ -99,6 +101,7 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        [Explicit]
         public void Crawl_Single_Lets_Go()
         {
             var scanResult = new Dictionary<string, string>() { { "SM", "https://www.smogon.com/forums/forums/sm/" } };
