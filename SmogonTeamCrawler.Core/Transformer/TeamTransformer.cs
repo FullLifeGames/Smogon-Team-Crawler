@@ -111,7 +111,7 @@ namespace SmogonTeamCrawler.Core.Transformer
 
             foreach (var kv in teamByActualTiers)
             {
-                kv.Value.Sort((t1, t2) => { return (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes); });
+                kv.Value.Sort((t1, t2) => (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes));
             }
 
             var tierOutputs = new Dictionary<string, string>();
@@ -137,21 +137,21 @@ namespace SmogonTeamCrawler.Core.Transformer
 
                     for (var i = 0; i < lines.Length; i++)
                     {
-                        if (lines[i].StartsWith("-") && lines[i].Contains("/"))
+                        if (lines[i].StartsWith("-") && lines[i].Contains('/'))
                         {
-                            lines[i] = lines[i].Substring(0, lines[i].IndexOf("/"));
+                            lines[i] = lines[i][..lines[i].IndexOf("/")];
                         }
-                        if (lines[i].Contains("]"))
+                        if (lines[i].Contains(']'))
                         {
-                            lines[i] = lines[i].Substring(0, lines[i].IndexOf("]") + 1);
+                            lines[i] = lines[i][..(lines[i].IndexOf("]") + 1)];
                         }
                     }
                     var betterTeamString = string.Join("\n", lines);
 
                     importable.Append("=== ");
                     var showdownTier = tier.Key;
-                    importable.Append(showdownTier + " ");
-                    importable.Append(tierDef + "/");
+                    importable.Append(showdownTier).Append(' ');
+                    importable.Append(tierDef).Append('/');
 
                     var teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "") + " " + team.URL;
                     importable.Append(teamString);
@@ -174,7 +174,7 @@ namespace SmogonTeamCrawler.Core.Transformer
             return tierOutputs;
         }
 
-        private string TranslateSmogonTeamsTier(string tier, string url, string tag)
+        private static string TranslateSmogonTeamsTier(string tier, string url, string tag)
         {
             var workingTier = tier.ToLower();
             var toWorkWithGen = GetToWorkWithGen(workingTier);
@@ -236,7 +236,7 @@ namespace SmogonTeamCrawler.Core.Transformer
                 }
             }
 
-            if (tag != null && tag.Contains("Gen "))
+            if (tag?.Contains("Gen ") == true)
             {
                 return tag.ToLower().Replace(" ", "");
             }
@@ -244,7 +244,7 @@ namespace SmogonTeamCrawler.Core.Transformer
             return null;
         }
 
-        private string GetToWorkWithGen(string workingTier)
+        private static string GetToWorkWithGen(string workingTier)
         {
             var toWorkWithGen = Common.CurrentGen;
             if (workingTier.Contains(Common.NewestGen))
@@ -259,9 +259,9 @@ namespace SmogonTeamCrawler.Core.Transformer
         {
             var workingTier = tier.ToLower();
             var startword = "";
-            if (tier.Contains(" "))
+            if (tier.Contains(' '))
             {
-                startword = workingTier.Substring(0, workingTier.IndexOf(" "));
+                startword = workingTier[..workingTier.IndexOf(" ")];
             }
 
             if (startword.Contains("gen"))
@@ -280,7 +280,7 @@ namespace SmogonTeamCrawler.Core.Transformer
                         toAdd = "ou";
                     }
                 }
-                return _mapping[startword] + workingTier.Substring(workingTier.IndexOf(" ") + 1).Replace(" ", "") + toAdd;
+                return _mapping[startword] + workingTier[(workingTier.IndexOf(" ") + 1)..].Replace(" ", "") + toAdd;
             }
 
             var toWorkWithGen = GetToWorkWithGen(workingTier);

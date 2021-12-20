@@ -16,10 +16,8 @@ namespace SmogonTeamCrawler.Core.Collector
         {
             var collectedTeams = new ConcurrentDictionary<string, ICollection<Team>>();
 
-            await Parallel.ForEachAsync(tierToLinks, async (kv, ct) =>
-            {
-                await CollectFromForum(collectedTeams, kv.Key, kv.Value, prefixUsage);
-            });
+            await Parallel.ForEachAsync(tierToLinks, async (kv, _) =>
+                await CollectFromForum(collectedTeams, kv.Key, kv.Value, prefixUsage).ConfigureAwait(false)).ConfigureAwait(false);
 
             return collectedTeams;
         }
@@ -29,7 +27,7 @@ namespace SmogonTeamCrawler.Core.Collector
             var pages = 1;
             for (var pageCount = 1; pageCount <= pages; pageCount++)
             {
-                var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount);
+                var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount).ConfigureAwait(false);
                 if (pages == 1)
                 {
                     pages = GetNumberOfPages(site);
@@ -62,7 +60,7 @@ namespace SmogonTeamCrawler.Core.Collector
                             collectedTeams.Add(identifier, new List<Team>());
                         }
                         var beforeCount = collectedTeams[identifier].Count;
-                        await AnalyzeThread(collectedTeams, tier: identifier, fullUrl, prefix);
+                        await AnalyzeThread(collectedTeams, tier: identifier, fullUrl, prefix).ConfigureAwait(false);
                         var afterCount = collectedTeams[identifier].Count;
                         Console.WriteLine("Added " + (afterCount - beforeCount) + " Teams");
                         Console.WriteLine();
@@ -83,7 +81,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 var pages = 1;
                 for (var pageCount = 1; pageCount <= pages; pageCount++)
                 {
-                    var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount);
+                    var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount).ConfigureAwait(false);
                     if (pages == 1)
                     {
                         pages = GetNumberOfPages(site);
@@ -112,7 +110,7 @@ namespace SmogonTeamCrawler.Core.Collector
 
                     foreach (var line in site.Split('\n'))
                     {
-                        await HandleLine(url, tier, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler);
+                        await HandleLine(url, tier, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler).ConfigureAwait(false);
                     }
                 }
             }
@@ -223,12 +221,12 @@ namespace SmogonTeamCrawler.Core.Collector
                         };
                         collectedTeams[tier].Add(teamObject);
 
-                        tmpTeam = tmpTeam.Substring(tmpTeam.IndexOf("===") + "===".Length);
-                        tmpTeam = tmpTeam.Substring(tmpTeam.IndexOf("\n") + 1);
+                        tmpTeam = tmpTeam[(tmpTeam.IndexOf("===") + "===".Length)..];
+                        tmpTeam = tmpTeam[(tmpTeam.IndexOf("\n") + 1)..];
 
                         if (tmpTeam.Contains("==="))
                         {
-                            tmpTeam = tmpTeam.Substring(tmpTeam.IndexOf("==="));
+                            tmpTeam = tmpTeam[tmpTeam.IndexOf("===")..];
                         }
                     }
                     if (!moreTeams)
@@ -249,10 +247,10 @@ namespace SmogonTeamCrawler.Core.Collector
             }
             else if (line.Contains("data-date-string=\"") && lineDataHandler.TimerHeader)
             {
-                string temp = line.Substring(line.IndexOf("data-date-string=\"") + "data-date-string=\"".Length);
-                temp = temp.Substring(temp.IndexOf("title") + "title".Length);
-                temp = temp.Substring(temp.IndexOf("\"") + 1);
-                temp = temp.Substring(0, temp.IndexOf("\""));
+                var temp = line[(line.IndexOf("data-date-string=\"") + "data-date-string=\"".Length)..];
+                temp = temp[(temp.IndexOf("title") + "title".Length)..];
+                temp = temp[(temp.IndexOf("\"") + 1)..];
+                temp = temp[..temp.IndexOf("\"")];
                 temp = temp.Replace("at ", "");
                 lineDataHandler.PostDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
                 lineDataHandler.TimerHeader = false;
@@ -264,16 +262,16 @@ namespace SmogonTeamCrawler.Core.Collector
             else if (lineDataHandler.LikeStarted)
             {
                 lineDataHandler.LikeStarted = false;
-                int likes = CountOccurences(line, "</bdi>");
+                var likes = CountOccurences(line, "</bdi>");
                 if (line.Contains(" others</a>"))
                 {
-                    string tempLikeString = line;
+                    var tempLikeString = line;
                     while (tempLikeString.Contains("</bdi>"))
                     {
-                        tempLikeString = tempLikeString.Substring(tempLikeString.IndexOf("</bdi>") + "</bdi>".Length);
+                        tempLikeString = tempLikeString[(tempLikeString.IndexOf("</bdi>") + "</bdi>".Length)..];
                     }
-                    tempLikeString = tempLikeString.Substring(tempLikeString.IndexOf("and") + "and".Length).Trim();
-                    tempLikeString = tempLikeString.Substring(0, tempLikeString.IndexOf(" "));
+                    tempLikeString = tempLikeString[(tempLikeString.IndexOf("and") + "and".Length)..].Trim();
+                    tempLikeString = tempLikeString[..tempLikeString.IndexOf(" ")];
                     likes += int.Parse(tempLikeString);
                 }
                 else if (line.Contains("1 other person</a>"))
@@ -286,7 +284,7 @@ namespace SmogonTeamCrawler.Core.Collector
             {
                 lineDataHandler.BlockStarted = true;
                 lineDataHandler.BlockText = "";
-                string temp = line.Substring(line.IndexOf("<div class=\"bbCodeBlock-content\">") + "<div class=\"bbCodeBlock-content\">".Length).Trim();
+                var temp = line[(line.IndexOf("<div class=\"bbCodeBlock-content\">") + "<div class=\"bbCodeBlock-content\">".Length)..].Trim();
                 if (temp != "<br />" && temp != "")
                 {
                     lineDataHandler.BlockText += temp + "\n";
@@ -311,15 +309,15 @@ namespace SmogonTeamCrawler.Core.Collector
             {
                 if (line.Contains("pokepast.es/"))
                 {
-                    string pasteUrl = line.Substring(line.IndexOf("pokepast.es/"));
+                    var pasteUrl = line[line.IndexOf("pokepast.es/")..];
                     if (pasteUrl.Contains(' ') || pasteUrl.Contains('"') || pasteUrl.Contains('<'))
                     {
-                        int nearest = int.MaxValue;
-                        int space = pasteUrl.IndexOf(" ");
-                        int quotation = pasteUrl.IndexOf("\"");
-                        int arrow = pasteUrl.IndexOf("<");
+                        var nearest = int.MaxValue;
+                        var space = pasteUrl.IndexOf(" ");
+                        var quotation = pasteUrl.IndexOf("\"");
+                        var arrow = pasteUrl.IndexOf("<");
 
-                        foreach (int pos in new int[] { space, quotation, arrow })
+                        foreach (var pos in new int[] { space, quotation, arrow })
                         {
                             if (pos != -1 && pos < nearest)
                             {
@@ -332,7 +330,7 @@ namespace SmogonTeamCrawler.Core.Collector
                     pasteUrl = "https://" + pasteUrl;
                     if (!pasteUrl.Contains("/img/"))
                     {
-                        string pokePasteTeam = await GetTeamFromPokepasteURL(pasteUrl);
+                        var pokePasteTeam = await GetTeamFromPokepasteURL(pasteUrl).ConfigureAwait(false);
                         if (IsTeam(pokePasteTeam))
                         {
                             currentTeams.Add(pokePasteTeam);
@@ -341,8 +339,8 @@ namespace SmogonTeamCrawler.Core.Collector
                 }
                 if (line.Contains("pastebin.com/"))
                 {
-                    string pasteUrl = line[line.IndexOf("pastebin.com/")..];
-                    var pasteString = await GetTeamFromBinner(pasteUrl, "pastebin.com");
+                    var pasteUrl = line[line.IndexOf("pastebin.com/")..];
+                    var pasteString = await GetTeamFromBinner(pasteUrl, "pastebin.com").ConfigureAwait(false);
                     if (pasteString != null)
                     {
                         currentTeams.Add(pasteString);
@@ -350,8 +348,8 @@ namespace SmogonTeamCrawler.Core.Collector
                 }
                 if (line.Contains("hastebin.com/"))
                 {
-                    string pasteUrl = line[line.IndexOf("hastebin.com/")..];
-                    var pasteString = await GetTeamFromBinner(pasteUrl, "hastebin.com");
+                    var pasteUrl = line[line.IndexOf("hastebin.com/")..];
+                    var pasteString = await GetTeamFromBinner(pasteUrl, "hastebin.com").ConfigureAwait(false);
                     if (pasteString != null)
                     {
                         currentTeams.Add(pasteString);
@@ -378,7 +376,7 @@ namespace SmogonTeamCrawler.Core.Collector
                     }
                 }
 
-                pasteUrl = pasteUrl.Substring(0, nearest);
+                pasteUrl = pasteUrl[..nearest];
             }
             if (pasteUrl.Contains("/raw/"))
             {
@@ -386,9 +384,9 @@ namespace SmogonTeamCrawler.Core.Collector
             }
             else
             {
-                pasteUrl = "https://" + urlRoot + "/raw/" + pasteUrl.Substring(pasteUrl.IndexOf("/") + 1);
+                pasteUrl = "https://" + urlRoot + "/raw/" + pasteUrl[(pasteUrl.IndexOf("/") + 1)..];
             }
-            var pasteString = await GetTeamFromBinURL(pasteUrl);
+            var pasteString = await GetTeamFromBinURL(pasteUrl).ConfigureAwait(false);
             if (IsTeam(pasteString))
             {
                 var blackListed = false;
@@ -414,7 +412,7 @@ namespace SmogonTeamCrawler.Core.Collector
             var site = "";
             try
             {
-                site = await Common.HttpClient.GetStringAsync(pasteUrl);
+                site = await Common.HttpClient.GetStringAsync(pasteUrl).ConfigureAwait(false);
             }
             catch (HttpRequestException)
             { }
@@ -439,9 +437,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 }
             }
 
-            team = htmlRemoverRegex.Replace(team, string.Empty);
-
-            return team;
+            return htmlRemoverRegex.Replace(team, string.Empty);
         }
 
         private async Task<string> GetTeamFromBinURL(string pasteUrl)
@@ -449,7 +445,7 @@ namespace SmogonTeamCrawler.Core.Collector
             var site = "";
             try
             {
-                site = await Common.HttpClient.GetStringAsync(pasteUrl);
+                site = await Common.HttpClient.GetStringAsync(pasteUrl).ConfigureAwait(false);
             }
             catch (HttpRequestException)
             { }
@@ -475,7 +471,7 @@ namespace SmogonTeamCrawler.Core.Collector
             return countFullMoves >= 6 || (CountOccurences(blockText, "EVs: ") >= 6 && CountOccurences(blockText, "Nature") >= 6 && CountOccurences(blockText, "Ability: ") >= 6);
         }
 
-        private int CountOccurences(string haystack, string needle)
+        private static int CountOccurences(string haystack, string needle)
         {
             return (haystack.Length - haystack.Replace(needle, "").Length) / needle.Length;
         }

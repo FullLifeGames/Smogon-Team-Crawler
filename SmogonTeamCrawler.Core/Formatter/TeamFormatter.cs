@@ -19,7 +19,7 @@ namespace SmogonTeamCrawler.Core.Formatter
 
                 output += "Smogon (" + key + "):\n\n";
                 teamsForTiers[key] = RemoveDuplicates(teamsForTiers[key]);
-                ((List<Team>) teamsForTiers[key]).Sort((t1, t2) => { return t2.Koeffizient.CompareTo(t1.Koeffizient); });
+                ((List<Team>) teamsForTiers[key]).Sort((t1, t2) => t2.Koeffizient.CompareTo(t1.Koeffizient));
 
                 foreach (Team team in teamsForTiers[key])
                 {
@@ -47,8 +47,7 @@ namespace SmogonTeamCrawler.Core.Formatter
             return output;
         }
 
-
-        private ICollection<Team> RemoveDuplicates(ICollection<Team> value)
+        private static ICollection<Team> RemoveDuplicates(ICollection<Team> value)
         {
             var uniqueTeams = new List<Team>();
             foreach (var team in value)

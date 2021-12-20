@@ -18,7 +18,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 TierToRmtLinks = new Dictionary<string, string>(),
             };
 
-            var smogonMain = await Common.HttpClient.GetStringAsync(Common.SMOGON_FORUMS_URL);
+            var smogonMain = await Common.HttpClient.GetStringAsync(Common.SMOGON_FORUMS_URL).ConfigureAwait(false);
             var scanStartZero = false;
             var scanStartOne = false;
             var scanStartTwo = false;
@@ -77,7 +77,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 }
             }
 
-            smogonMain = await Common.HttpClient.GetStringAsync(Common.ARCHIVE_URL);
+            smogonMain = await Common.HttpClient.GetStringAsync(Common.ARCHIVE_URL).ConfigureAwait(false);
             scanStartTwo = false;
             foreach (var line in smogonMain.Split('\n'))
             {
