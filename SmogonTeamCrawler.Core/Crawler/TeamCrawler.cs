@@ -58,7 +58,8 @@ namespace SmogonTeamCrawler.Core.Crawler
                 outputRMT = Formatter.FormatOutput(rmtForTiers);
             }
 
-            var tierOutputs = Transformer.Transform(teamsForTiers, rmtForTiers);
+            var createdTeamsByTiers = Transformer.CreateTeamsByTiers(teamsForTiers, rmtForTiers);
+            var teamsByTiers = Transformer.Transform(teamsForTiers, rmtForTiers);
 
             return new CrawlResult()
             {
@@ -68,7 +69,8 @@ namespace SmogonTeamCrawler.Core.Crawler
                 SmogonOutput = output,
                 RmtsOutput = outputRMT,
 
-                TeamsByTier = tierOutputs,
+                CreatedTeamsByTiers = createdTeamsByTiers,
+                TeamsByTier = teamsByTiers,
             };
         }
     }

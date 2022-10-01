@@ -1,5 +1,4 @@
 ﻿using SmogonTeamCrawler.Core.Data;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Core.Scanner

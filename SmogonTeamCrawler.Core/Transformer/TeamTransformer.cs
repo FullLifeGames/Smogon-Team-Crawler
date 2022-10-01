@@ -48,71 +48,7 @@ namespace SmogonTeamCrawler.Core.Transformer
 
         public IDictionary<string, string> Transform(IDictionary<string, ICollection<Team>> smogonTeams, IDictionary<string, ICollection<Team>> rmts)
         {
-            var teamByActualTiers = new Dictionary<string, List<Team>>();
-
-            foreach (var tier in smogonTeams)
-            {
-                var tierDef = tier.Key;
-                foreach (var team in tier.Value)
-                {
-                    var showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL, team.TeamTag);
-                    if (showdownTier == null)
-                    {
-                        showdownTier = "";
-                    }
-                    else
-                    {
-                        showdownTier = "[" + showdownTier + "]";
-                    }
-
-                    if (team.TeamTier != null)
-                    {
-                        showdownTier = "[" + team.TeamTier + "]";
-                    }
-                    if (!teamByActualTiers.ContainsKey(showdownTier))
-                    {
-                        teamByActualTiers.Add(showdownTier, new List<Team>());
-                    }
-                    team.Definition = tierDef;
-                    team.RMT = false;
-                    teamByActualTiers[showdownTier].Add(team);
-                }
-            }
-
-            foreach (var tier in rmts)
-            {
-                var tierDef = tier.Key;
-                foreach (var team in tier.Value)
-                {
-                    var showdownTier = TranslateRMTTeamsTier(tierDef);
-                    if (showdownTier == null)
-                    {
-                        team.TeamTier = "";
-                        showdownTier = "";
-                    }
-                    else if (team.TeamTier != null)
-                    {
-                        showdownTier = "[" + team.TeamTier + "]";
-                    }
-                    else
-                    {
-                        team.TeamTier = showdownTier;
-                        showdownTier = "[" + showdownTier + "]";
-                    }
-                    if (!teamByActualTiers.ContainsKey(showdownTier))
-                    {
-                        teamByActualTiers.Add(showdownTier, new List<Team>());
-                    }
-                    team.Definition = tierDef;
-                    team.RMT = true;
-                    teamByActualTiers[showdownTier].Add(team);
-                }
-            }
-
-            foreach (var kv in teamByActualTiers)
-            {
-                kv.Value.Sort((t1, t2) => (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes));
-            }
+            var teamByActualTiers = CreateTeamsByTiers(smogonTeams, rmts);
 
             var tierOutputs = new Dictionary<string, string>();
             var finalImportable = "";
@@ -294,6 +230,77 @@ namespace SmogonTeamCrawler.Core.Transformer
             }
 
             return null;
+        }
+
+        public IDictionary<string, ICollection<Team>> CreateTeamsByTiers(IDictionary<string, ICollection<Team>> smogonTeams, IDictionary<string, ICollection<Team>> rmts)
+        {
+            IDictionary<string, ICollection<Team>> teamByActualTiers = new Dictionary<string, ICollection<Team>>();
+
+            foreach (var tier in smogonTeams)
+            {
+                var tierDef = tier.Key;
+                foreach (var team in tier.Value)
+                {
+                    var showdownTier = TranslateSmogonTeamsTier(tierDef, team.URL, team.TeamTag);
+                    if (showdownTier == null)
+                    {
+                        showdownTier = "";
+                    }
+                    else
+                    {
+                        showdownTier = "[" + showdownTier + "]";
+                    }
+
+                    if (team.TeamTier != null)
+                    {
+                        showdownTier = "[" + team.TeamTier + "]";
+                    }
+                    if (!teamByActualTiers.ContainsKey(showdownTier))
+                    {
+                        teamByActualTiers.Add(showdownTier, new List<Team>());
+                    }
+                    team.Definition = tierDef;
+                    team.RMT = false;
+                    teamByActualTiers[showdownTier].Add(team);
+                }
+            }
+
+            foreach (var tier in rmts)
+            {
+                var tierDef = tier.Key;
+                foreach (var team in tier.Value)
+                {
+                    var showdownTier = TranslateRMTTeamsTier(tierDef);
+                    if (showdownTier == null)
+                    {
+                        team.TeamTier = "";
+                        showdownTier = "";
+                    }
+                    else if (team.TeamTier != null)
+                    {
+                        showdownTier = "[" + team.TeamTier + "]";
+                    }
+                    else
+                    {
+                        team.TeamTier = showdownTier;
+                        showdownTier = "[" + showdownTier + "]";
+                    }
+                    if (!teamByActualTiers.ContainsKey(showdownTier))
+                    {
+                        teamByActualTiers.Add(showdownTier, new List<Team>());
+                    }
+                    team.Definition = tierDef;
+                    team.RMT = true;
+                    teamByActualTiers[showdownTier].Add(team);
+                }
+            }
+
+            foreach (var kv in teamByActualTiers)
+            {
+                (kv.Value as List<Team>).Sort((t1, t2) => (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes));
+            }
+
+            return teamByActualTiers;
         }
     }
 }

@@ -1,6 +1,5 @@
 ﻿using SmogonTeamCrawler.Core.Util;
 using System;
-using System.Text.RegularExpressions;
 
 namespace SmogonTeamCrawler.Core.Data
 {

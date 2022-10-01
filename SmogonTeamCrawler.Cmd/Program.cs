@@ -14,6 +14,11 @@ if (crawlRequest.MainForum)
     ).ConfigureAwait(false);
 
     await File.WriteAllTextAsync(
+        "output.json",
+        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.SmogonTeams)
+    ).ConfigureAwait(false);
+
+    await File.WriteAllTextAsync(
         "output.txt",
         crawlResult.SmogonOutput
     ).ConfigureAwait(false);
@@ -23,6 +28,11 @@ if (crawlRequest.RMTForum)
 {
     await File.WriteAllTextAsync(
         "outputRMTJson.txt",
+        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.Rmts)
+    ).ConfigureAwait(false);
+
+    await File.WriteAllTextAsync(
+        "outputRMT.json",
         Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.Rmts)
     ).ConfigureAwait(false);
 
@@ -43,7 +53,27 @@ foreach (var outputs in crawlResult.TeamsByTier)
     ).ConfigureAwait(false);
 }
 
+foreach (var outputs in crawlResult.CreatedTeamsByTiers)
+{
+    var tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
+
+    await File.WriteAllTextAsync(
+        tempTier.Replace("[", "").Replace("]", "") + ".json",
+        Newtonsoft.Json.JsonConvert.SerializeObject(outputs.Value)
+    ).ConfigureAwait(false);
+}
+
 await File.WriteAllTextAsync(
     "finalJson.txt",
     Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
+).ConfigureAwait(false);
+
+await File.WriteAllTextAsync(
+    "final.json",
+    Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
+).ConfigureAwait(false);
+
+await File.WriteAllTextAsync(
+    "finalCollected.json",
+    Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.CreatedTeamsByTiers)
 ).ConfigureAwait(false);

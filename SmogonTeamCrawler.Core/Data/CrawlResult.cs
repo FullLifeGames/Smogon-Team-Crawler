@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace SmogonTeamCrawler.Core.Data
 {
@@ -11,6 +10,7 @@ namespace SmogonTeamCrawler.Core.Data
         public string SmogonOutput { get; set; }
         public string RmtsOutput { get; set; }
 
+        public IDictionary<string, ICollection<Team>> CreatedTeamsByTiers { get; set; }
         public IDictionary<string, string> TeamsByTier { get; set; }
     }
 }
