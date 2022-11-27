@@ -20,7 +20,7 @@ namespace SmogonTeamCrawler.Core.Util
         }
 
         public static string CurrentGen { get; set; } = "gen8";
-        public static string NewestGen { get; set; } = CurrentGen;
+        public static string NewestGen { get; set; } = "gen9";
 
         public static string[] HardCodedBlacklistedPastes = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr" };
 

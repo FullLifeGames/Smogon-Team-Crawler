@@ -11,6 +11,7 @@ namespace SmogonTeamCrawler.Core.Transformer
     {
         private static readonly IDictionary<string, string> _mapping = new Dictionary<string, string>
         {
+            { "sv", "gen9" },
             { "bdsp", "gen8bdsp" },
             { "national dex", "gen8nationaldex" },
             { "ss", "gen8" },

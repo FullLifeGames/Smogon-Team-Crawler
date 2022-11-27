@@ -40,7 +40,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, scanResult.TierToRegularLinks);
+                        GetAndAddURL(line, scanResult.TierToRegularLinks, false, true);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -102,10 +102,14 @@ namespace SmogonTeamCrawler.Core.Scanner
             return scanResult;
         }
 
-        private void GetAndAddURL(string line, IDictionary<string, string> addition, bool useCurrentGen = false)
+        private void GetAndAddURL(string line, IDictionary<string, string> addition, bool useNewGen = false, bool useCurrentGen = false)
         {
             var urlName = line[(line.IndexOf(">") + 1)..];
             urlName = urlName[..urlName.IndexOf("<")];
+            if (useNewGen)
+            {
+                urlName = Common.NewestGen + urlName;
+            }
             if (useCurrentGen)
             {
                 urlName = Common.CurrentGen + urlName;
