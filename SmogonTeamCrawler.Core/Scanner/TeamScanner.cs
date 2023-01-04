@@ -59,11 +59,11 @@ namespace SmogonTeamCrawler.Core.Scanner
                         break;
                     }
                 }
-                else if (line.Contains("Uncharted Territory"))
+                else if (line.Contains("Smogon Metagames"))
                 {
                     scanStartZero = true;
                 }
-                else if (line.Contains("Smogon Metagames"))
+                else if (line.Contains("Gen 8 Competitive Discussion"))
                 {
                     scanStartOne = true;
                 }
