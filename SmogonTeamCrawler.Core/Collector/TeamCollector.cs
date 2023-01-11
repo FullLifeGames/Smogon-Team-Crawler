@@ -1,4 +1,6 @@
-﻿using SmogonTeamCrawler.Core.Data;
+﻿using Microsoft.Extensions.Caching.Distributed;
+using Newtonsoft.Json;
+using SmogonTeamCrawler.Core.Data;
 using SmogonTeamCrawler.Core.Util;
 using System;
 using System.Collections.Concurrent;
@@ -12,6 +14,16 @@ namespace SmogonTeamCrawler.Core.Collector
 {
     public class TeamCollector : ICollector
     {
+        public TeamCollector() : this(null)
+        {
+        }
+
+        private readonly IDistributedCache? _cache;
+        public TeamCollector(IDistributedCache? cache)
+        {
+            _cache = cache;
+        }
+
         public async Task<IDictionary<string, ICollection<Team>>> Collect(IDictionary<string, string> tierToLinks, bool prefixUsage)
         {
             var collectedTeams = new ConcurrentDictionary<string, ICollection<Team>>();
@@ -59,10 +71,26 @@ namespace SmogonTeamCrawler.Core.Collector
                         {
                             collectedTeams.Add(identifier, new List<Team>());
                         }
-                        var beforeCount = collectedTeams[identifier].Count;
-                        await AnalyzeThread(collectedTeams, tier: identifier, fullUrl, prefix).ConfigureAwait(false);
-                        var afterCount = collectedTeams[identifier].Count;
-                        Console.WriteLine("Added " + (afterCount - beforeCount) + " Teams");
+                        var collectionList = new Dictionary<string, ICollection<Team>>();
+                        ThreadAnalyzeResult analyzeResult;
+                        if (await LastIdIsCurrent(fullUrl))
+                        {
+                            analyzeResult = JsonConvert.DeserializeObject<ThreadAnalyzeResult>(_cache!.GetString(fullUrl)!)!;
+                            foreach (var entry in analyzeResult.CollectedTeams)
+                            {
+                                collectedTeams[identifier].Add(entry);
+                            }
+                        }
+                        else
+                        {
+                            analyzeResult = await AnalyzeThread(fullUrl, prefix).ConfigureAwait(false);
+                            foreach (var entry in analyzeResult.CollectedTeams)
+                            {
+                                collectedTeams[identifier].Add(entry);
+                            }
+                            _cache?.SetString(fullUrl, JsonConvert.SerializeObject(analyzeResult));
+                        }
+                        Console.WriteLine("Added " + (analyzeResult.CollectedTeams.Count) + " Teams");
                         Console.WriteLine();
                         prefix = "";
                     }
@@ -70,15 +98,67 @@ namespace SmogonTeamCrawler.Core.Collector
             }
         }
 
-        public async Task AnalyzeThread(IDictionary<string, ICollection<Team>> collectedTeams, string tier, string url, string prefix)
+        private async Task<bool> LastIdIsCurrent(string fullUrl)
         {
-            if (!collectedTeams.ContainsKey(tier))
+            if (_cache == null)
             {
-                collectedTeams.Add(tier, new List<Team>());
+                return false;
             }
+
+            var cachedResults = _cache.GetString(fullUrl);
+            if (cachedResults == null)
+            {
+                return false;
+            }
+
+            var analyzeResult = JsonConvert.DeserializeObject<ThreadAnalyzeResult>(cachedResults);
+            if (analyzeResult == null)
+            {
+                return false;
+            }
+
+            // If the last post is older than two years, assumption is that no new activity with relevant teams will be posted
+            if (analyzeResult.LastPost < DateTime.Now.AddYears(-2))
+            {
+                return true;
+            }
+
+            var site = await Common.HttpClient.GetStringAsync(fullUrl + "page-" + analyzeResult.NumberOfPages).ConfigureAwait(false);
+            var numberOfPages = GetNumberOfPages(site);
+            if (numberOfPages != analyzeResult.NumberOfPages)
+            {
+                return false;
+            }
+
+            var lineDataHandler = new LineDataHandler();
+            foreach (var line in site.Split('\n'))
+            {
+                if (line.Contains("<header class=\"message-attribution message-attribution--split\">"))
+                {
+                    lineDataHandler.TimerHeader = true;
+                }
+                else if (line.Contains("data-date-string=\"") && lineDataHandler.TimerHeader)
+                {
+                    var temp = line[(line.IndexOf("data-date-string=\"") + "data-date-string=\"".Length)..];
+                    temp = temp[(temp.IndexOf("title") + "title".Length)..];
+                    temp = temp[(temp.IndexOf("\"") + 1)..];
+                    temp = temp[..temp.IndexOf("\"")];
+                    temp = temp.Replace("at ", "");
+                    lineDataHandler.PostDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+                    lineDataHandler.TimerHeader = false;
+                }
+            }
+
+            return lineDataHandler.PostDate == analyzeResult.LastPost;
+        }
+
+        public async Task<ThreadAnalyzeResult> AnalyzeThread(string url, string? prefix)
+        {
+            var pages = 1;
+            var latestPost = DateTime.UnixEpoch;
+            var collectedTeams = new List<Team>();
             try
             {
-                var pages = 1;
                 for (var pageCount = 1; pageCount <= pages; pageCount++)
                 {
                     var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount).ConfigureAwait(false);
@@ -87,31 +167,15 @@ namespace SmogonTeamCrawler.Core.Collector
                         pages = GetNumberOfPages(site);
                     }
 
-                    var lineDataHandler = new LineDataHandler()
-                    {
-                        BlockStarted = false,
-                        BlockText = "",
-
-                        PostStarted = false,
-                        PostLink = "",
-                        PostLikes = 0,
-                        PostDate = DateTime.Now,
-
-                        PostedBy = "",
-
-                        LikeStarted = false,
-
-                        TimerHeader = false,
-
-                        LastLine = "",
-                    };
+                    var lineDataHandler = new LineDataHandler();
 
                     var currentTeams = new List<string>();
 
                     foreach (var line in site.Split('\n'))
                     {
-                        await HandleLine(url, tier, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler).ConfigureAwait(false);
+                        await HandleLine(url, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler).ConfigureAwait(false);
                     }
+                    latestPost = lineDataHandler.PostDate;
                 }
             }
             catch (HttpRequestException e)
@@ -119,6 +183,13 @@ namespace SmogonTeamCrawler.Core.Collector
                 Console.WriteLine("HttpRequestException at: " + url);
                 Console.WriteLine(e.Message);
             }
+
+            return new ThreadAnalyzeResult()
+            {
+                CollectedTeams = collectedTeams,
+                LastPost = latestPost,
+                NumberOfPages = pages,
+            };
         }
 
         private static int GetNumberOfPages(string site)
@@ -143,18 +214,18 @@ namespace SmogonTeamCrawler.Core.Collector
         public class LineDataHandler
         {
             public bool BlockStarted { get; set; }
-            public string BlockText { get; set; }
+            public string BlockText { get; set; } = "";
             public bool PostStarted { get; set; }
             public int PostLikes { get; set; }
-            public DateTime PostDate { get; set; }
-            public string PostedBy { get; set; }
-            public string LastLine { get; set; }
-            public string PostLink { get; set; }
+            public DateTime PostDate { get; set; } = DateTime.Now;
+            public string PostedBy { get; set; } = "";
+            public string LastLine { get; set; } = "";
+            public string PostLink { get; set; } = "";
             public bool LikeStarted { get; set; }
             public bool TimerHeader { get; set; }
         }
 
-        private async Task HandleLine(string url, string tier, IDictionary<string, ICollection<Team>> collectedTeams, int pageCount, ICollection<string> currentTeams, string line, string prefix, LineDataHandler lineDataHandler)
+        private async Task HandleLine(string url, ICollection<Team> collectedTeams, int pageCount, ICollection<string> currentTeams, string line, string? prefix, LineDataHandler lineDataHandler)
         {
             if (!lineDataHandler.PostStarted)
             {
@@ -192,7 +263,7 @@ namespace SmogonTeamCrawler.Core.Collector
                         }
                         teamLine = teamLine[..teamLine.IndexOf("\n")];
 
-                        string teamTier = null;
+                        string? teamTier = null;
                         if (teamLine.Contains('[') && teamLine.Contains(']'))
                         {
                             teamTier = teamLine.Substring(teamLine.IndexOf("[") + 1, teamLine.IndexOf("]") - teamLine.IndexOf("[") - 1);
@@ -219,7 +290,7 @@ namespace SmogonTeamCrawler.Core.Collector
                             TeamTier = teamTier,
                             TeamTitle = teamTitle
                         };
-                        collectedTeams[tier].Add(teamObject);
+                        collectedTeams.Add(teamObject);
 
                         tmpTeam = tmpTeam[(tmpTeam.IndexOf("===") + "===".Length)..];
                         tmpTeam = tmpTeam[(tmpTeam.IndexOf("\n") + 1)..];
@@ -232,14 +303,13 @@ namespace SmogonTeamCrawler.Core.Collector
                     if (!moreTeams)
                     {
                         var teamObject = new Team(team, lineDataHandler.PostLikes, lineDataHandler.PostDate, url + "page-" + pageCount + "#" + lineDataHandler.PostLink, lineDataHandler.PostedBy, prefix);
-                        collectedTeams[tier].Add(teamObject);
+                        collectedTeams.Add(teamObject);
                     }
                 }
                 currentTeams.Clear();
                 lineDataHandler.PostLikes = 0;
                 lineDataHandler.BlockText = "";
                 lineDataHandler.PostedBy = "";
-                lineDataHandler.PostDate = DateTime.Now;
             }
             else if (line.Contains("<header class=\"message-attribution message-attribution--split\">"))
             {
@@ -359,7 +429,7 @@ namespace SmogonTeamCrawler.Core.Collector
             lineDataHandler.LastLine = line;
         }
 
-        private async Task<string> GetTeamFromBinner(string pasteUrl, string urlRoot)
+        private async Task<string?> GetTeamFromBinner(string pasteUrl, string urlRoot)
         {
             if (pasteUrl.Contains(' ') || pasteUrl.Contains('"') || pasteUrl.Contains('<'))
             {

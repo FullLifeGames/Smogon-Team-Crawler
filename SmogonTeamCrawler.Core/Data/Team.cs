@@ -5,20 +5,29 @@ namespace SmogonTeamCrawler.Core.Data
 {
     public class Team
     {
-        public string TeamString { get; set; }
+        private string _teamString = null!;
+        public string TeamString
+        {
+            get { return _teamString; }
+            set
+            {
+                _teamString = value;
+                RegexTeam = Common.TeamRegex.Replace(_teamString, "");
+            }
+        }
+        private string RegexTeam { get; set; } = null!;
         public int Likes { get; set; }
         public DateTime PostDate { get; set; }
         public string URL { get; set; }
         public string PostedBy { get; set; }
-        public string TeamTitle { get; set; } = null;
-        public string TeamTier { get; set; } = null;
-        public string TeamLineUp { get; set; } = null;
-        private string RegexTeam { get; set; }
+        public string? TeamTitle { get; set; }
+        public string? TeamTier { get; set; }
+        public string? TeamLineUp { get; set; }
 
-        public string TeamTag { get; set; } = null;
+        public string? TeamTag { get; set; }
 
-        public bool RMT { get; set; } = false;
-        public string Definition { get; set; } = null;
+        public bool RMT { get; set; }
+        public string? Definition { get; set; }
 
         public double Koeffizient { get {
             return Likes *
@@ -29,7 +38,7 @@ namespace SmogonTeamCrawler.Core.Data
                 );
         } }
 
-        public Team(string teamString, int likes, DateTime postDate, string url, string postedBy, string prefix)
+        public Team(string teamString, int likes, DateTime postDate, string url, string postedBy, string? prefix)
         {
             TeamString = teamString.Replace("\t", "");
             Likes = likes;
@@ -37,12 +46,11 @@ namespace SmogonTeamCrawler.Core.Data
             URL = url;
             PostedBy = postedBy;
             TeamTag = prefix;
-            RegexTeam = Common.TeamRegex.Replace(teamString, "");
         }
 
         public bool EqualsOrEmpty(Team team)
         {
-            if (team.RegexTeam == "")
+            if (team.RegexTeam?.Length == 0)
             {
                 return true;
             }

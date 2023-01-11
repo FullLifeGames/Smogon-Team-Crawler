@@ -102,7 +102,7 @@ namespace SmogonTeamCrawler.Core.Scanner
             return scanResult;
         }
 
-        private void GetAndAddURL(string line, IDictionary<string, string> addition, bool useNewGen = false, bool useCurrentGen = false)
+        private static void GetAndAddURL(string line, IDictionary<string, string> addition, bool useNewGen = false, bool useCurrentGen = false)
         {
             var urlName = line[(line.IndexOf(">") + 1)..];
             urlName = urlName[..urlName.IndexOf("<")];

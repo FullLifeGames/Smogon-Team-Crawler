@@ -111,7 +111,7 @@ namespace SmogonTeamCrawler.Core.Transformer
             return tierOutputs;
         }
 
-        private static string TranslateSmogonTeamsTier(string tier, string url, string tag)
+        private static string? TranslateSmogonTeamsTier(string tier, string url, string? tag)
         {
             var workingTier = tier.ToLower();
             var toWorkWithGen = GetToWorkWithGen(workingTier);
@@ -192,7 +192,7 @@ namespace SmogonTeamCrawler.Core.Transformer
             return toWorkWithGen;
         }
 
-        private string TranslateRMTTeamsTier(string tier)
+        private static string? TranslateRMTTeamsTier(string tier)
         {
             var workingTier = tier.ToLower();
             var startword = "";
@@ -298,7 +298,7 @@ namespace SmogonTeamCrawler.Core.Transformer
 
             foreach (var kv in teamByActualTiers)
             {
-                (kv.Value as List<Team>).Sort((t1, t2) => (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes));
+                (kv.Value as List<Team>)?.Sort((t1, t2) => (t2.Koeffizient.CompareTo(t1.Koeffizient) != 0) ? t2.Koeffizient.CompareTo(t1.Koeffizient) : t2.Likes.CompareTo(t1.Likes));
             }
 
             return teamByActualTiers;

@@ -47,28 +47,11 @@ namespace SmogonTeamCrawler.Core.Crawler
                 rmtForTiers = await Collector.Collect(scanResult.TierToRmtLinks, true).ConfigureAwait(false);
             }
 
-            var output = "";
-            if (crawlRequest.MainForum)
-            {
-                output = Formatter.FormatOutput(teamsForTiers);
-            }
-            var outputRMT = "";
-            if (crawlRequest.RMTForum)
-            {
-                outputRMT = Formatter.FormatOutput(rmtForTiers);
-            }
-
             var createdTeamsByTiers = Transformer.CreateTeamsByTiers(teamsForTiers, rmtForTiers);
             var teamsByTiers = Transformer.Transform(teamsForTiers, rmtForTiers);
 
             return new CrawlResult()
             {
-                SmogonTeams = teamsForTiers,
-                Rmts = rmtForTiers,
-
-                SmogonOutput = output,
-                RmtsOutput = outputRMT,
-
                 CreatedTeamsByTiers = createdTeamsByTiers,
                 TeamsByTier = teamsByTiers,
             };

@@ -1,46 +1,22 @@
-﻿var teamCrawler = new SmogonTeamCrawler.Core.Crawler.SmogonTeamCrawler();
+﻿using NeoSmart.Caching.Sqlite;
+
+var teamCrawler = new SmogonTeamCrawler.Core.Crawler.SmogonTeamCrawler(
+    new SqliteCache(
+        new SqliteCacheOptions()
+        {
+            MemoryOnly = false,
+            CachePath = "SmogonDump.db",
+        }
+    )
+);
+
 var crawlRequest = new SmogonTeamCrawler.Core.Data.CrawlRequest()
 {
     MainForum = true,
     RMTForum = true,
 };
+
 var crawlResult = await teamCrawler.CrawlAsync(crawlRequest).ConfigureAwait(false);
-
-if (crawlRequest.MainForum)
-{
-    await File.WriteAllTextAsync(
-        "outputJson.txt",
-        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.SmogonTeams)
-    ).ConfigureAwait(false);
-
-    await File.WriteAllTextAsync(
-        "output.json",
-        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.SmogonTeams)
-    ).ConfigureAwait(false);
-
-    await File.WriteAllTextAsync(
-        "output.txt",
-        crawlResult.SmogonOutput
-    ).ConfigureAwait(false);
-}
-
-if (crawlRequest.RMTForum)
-{
-    await File.WriteAllTextAsync(
-        "outputRMTJson.txt",
-        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.Rmts)
-    ).ConfigureAwait(false);
-
-    await File.WriteAllTextAsync(
-        "outputRMT.json",
-        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.Rmts)
-    ).ConfigureAwait(false);
-
-    await File.WriteAllTextAsync(
-        "outputRMT.txt",
-        crawlResult.RmtsOutput
-    ).ConfigureAwait(false);
-}
 
 foreach (var outputs in crawlResult.TeamsByTier)
 {
@@ -63,17 +39,21 @@ foreach (var outputs in crawlResult.CreatedTeamsByTiers)
     ).ConfigureAwait(false);
 }
 
-await File.WriteAllTextAsync(
-    "finalJson.txt",
-    Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
-).ConfigureAwait(false);
+var dumpEverything = false;
+if (dumpEverything)
+{
+    await File.WriteAllTextAsync(
+        "finalJson.txt",
+        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
+    ).ConfigureAwait(false);
 
-await File.WriteAllTextAsync(
-    "final.json",
-    Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
-).ConfigureAwait(false);
+    await File.WriteAllTextAsync(
+        "final.json",
+        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
+    ).ConfigureAwait(false);
 
-await File.WriteAllTextAsync(
-    "finalCollected.json",
-    Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.CreatedTeamsByTiers)
-).ConfigureAwait(false);
+    await File.WriteAllTextAsync(
+        "finalCollected.json",
+        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.CreatedTeamsByTiers)
+    ).ConfigureAwait(false);
+}

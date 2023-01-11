@@ -69,7 +69,7 @@ namespace SmogonTeamCrawler.Core.Formatter
             return uniqueTeams;
         }
 
-        private string GetTeamLineupString(string teamString)
+        private static string GetTeamLineupString(string teamString)
         {
             var mons = new List<string>();
             foreach (var monData in teamString.Split(new string[] { "\n\n" }, StringSplitOptions.None))

@@ -30,13 +30,12 @@ namespace SmogonTeamCrawler.Tests
         public void Crawl_Single()
         {
             var collectedTeams = new Dictionary<string, ICollection<Team>>();
-
-            _teamCrawler.Collector.AnalyzeThread(
-                collectedTeams,
-                "gen8ou",
+            var result = _teamCrawler.Collector.AnalyzeThread(
                 "https://www.smogon.com/forums/threads/ss-ou-sample-teams-crown-tundra.3672556/",
                 "gen8ou"
-            ).Wait();
+            ).Result;
+            collectedTeams.Add("gen8ou", result.CollectedTeams);
+
             Assert.IsTrue(collectedTeams.Count > 0);
 
             var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
@@ -50,13 +49,12 @@ namespace SmogonTeamCrawler.Tests
         public void Crawl_Single_DPP()
         {
             var collectedTeams = new Dictionary<string, ICollection<Team>>();
-
-            _teamCrawler.Collector.AnalyzeThread(
-                collectedTeams,
-                "gen4ou",
+            var result = _teamCrawler.Collector.AnalyzeThread(
                 "https://www.smogon.com/forums/threads/dpp-post-dugtrio-ban.3672744/",
                 "gen4ou"
-            ).Wait();
+            ).Result;
+            collectedTeams.Add("gen4ou", result.CollectedTeams);
+
             Assert.IsTrue(collectedTeams.Count > 0);
 
             var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
@@ -127,10 +125,6 @@ namespace SmogonTeamCrawler.Tests
                 RMTForum = true,
             });
 
-            Assert.IsTrue(result.SmogonTeams.Count > 0);
-            Assert.IsTrue(result.Rmts.Count > 0);
-            Assert.IsTrue(result.SmogonOutput.Length > 0);
-            Assert.IsTrue(result.RmtsOutput.Length > 0);
             Assert.IsTrue(result.TeamsByTier.Count > 0);
         }
     }
