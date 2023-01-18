@@ -211,20 +211,6 @@ namespace SmogonTeamCrawler.Core.Collector
             return pages;
         }
 
-        public class LineDataHandler
-        {
-            public bool BlockStarted { get; set; }
-            public string BlockText { get; set; } = "";
-            public bool PostStarted { get; set; }
-            public int PostLikes { get; set; }
-            public DateTime PostDate { get; set; } = DateTime.Now;
-            public string PostedBy { get; set; } = "";
-            public string LastLine { get; set; } = "";
-            public string PostLink { get; set; } = "";
-            public bool LikeStarted { get; set; }
-            public bool TimerHeader { get; set; }
-        }
-
         private async Task HandleLine(string url, ICollection<Team> collectedTeams, int pageCount, ICollection<string> currentTeams, string line, string? prefix, LineDataHandler lineDataHandler)
         {
             if (!lineDataHandler.PostStarted)
