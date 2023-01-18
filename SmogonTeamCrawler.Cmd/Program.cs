@@ -1,4 +1,5 @@
 ﻿using NeoSmart.Caching.Sqlite;
+using Newtonsoft.Json;
 
 var teamCrawler = new SmogonTeamCrawler.Core.Crawler.SmogonTeamCrawler(
     new SqliteCache(
@@ -33,27 +34,31 @@ foreach (var outputs in crawlResult.CreatedTeamsByTiers)
 {
     var tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
 
-    await File.WriteAllTextAsync(
-        tempTier.Replace("[", "").Replace("]", "") + ".json",
-        Newtonsoft.Json.JsonConvert.SerializeObject(outputs.Value)
-    ).ConfigureAwait(false);
+    // serialize JSON directly to a file
+    using (var file = File.CreateText(tempTier.Replace("[", "").Replace("]", "") + ".json"))
+    {
+        var serializer = new JsonSerializer();
+        serializer.Serialize(file, outputs.Value);
+    }
 }
 
-var dumpEverything = false;
-if (dumpEverything)
+// serialize JSON directly to a file
+using (var file = File.CreateText("finalJson.txt"))
 {
-    await File.WriteAllTextAsync(
-        "finalJson.txt",
-        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
-    ).ConfigureAwait(false);
+    var serializer = new JsonSerializer();
+    serializer.Serialize(file, crawlResult.TeamsByTier);
+}
 
-    await File.WriteAllTextAsync(
-        "final.json",
-        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.TeamsByTier)
-    ).ConfigureAwait(false);
+// serialize JSON directly to a file
+using (var file = File.CreateText("final.json"))
+{
+    var serializer = new JsonSerializer();
+    serializer.Serialize(file, crawlResult.TeamsByTier);
+}
 
-    await File.WriteAllTextAsync(
-        "finalCollected.json",
-        Newtonsoft.Json.JsonConvert.SerializeObject(crawlResult.CreatedTeamsByTiers)
-    ).ConfigureAwait(false);
+// serialize JSON directly to a file
+using (var file = File.CreateText("finalCollected.json"))
+{
+    var serializer = new JsonSerializer();
+    serializer.Serialize(file, crawlResult.CreatedTeamsByTiers);
 }

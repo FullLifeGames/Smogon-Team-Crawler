@@ -10,7 +10,7 @@ namespace SmogonTeamCrawler.Core.Util
         {
             get
             {
-                _httpClient ??= new HttpClient();
+                _httpClient ??= new HttpClient(new HttpRetryMessageHandler(new HttpClientHandler()));
                 return _httpClient;
             }
             set => _httpClient = value;
