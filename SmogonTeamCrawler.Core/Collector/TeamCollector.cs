@@ -71,7 +71,7 @@ namespace SmogonTeamCrawler.Core.Collector
                         {
                             collectedTeams.Add(identifier, new List<Team>());
                         }
-                        var collectionList = new Dictionary<string, ICollection<Team>>();
+
                         ThreadAnalyzeResult analyzeResult;
                         if (await LastIdIsCurrent(fullUrl))
                         {

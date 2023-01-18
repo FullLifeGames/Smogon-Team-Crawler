@@ -19,7 +19,7 @@ namespace SmogonTeamCrawler.Core.Util
         public static string CurrentGen { get; set; } = "gen8";
         public static string NewestGen { get; set; } = "gen9";
 
-        public static string[] HardCodedBlacklistedPastes { get; set; } = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr" };
+        public static string[] HardCodedBlacklistedPastes { get; set; } = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr", "a155d09dc696b334" };
 
         public static double KoeffScale { get; set; } = 3;
 
