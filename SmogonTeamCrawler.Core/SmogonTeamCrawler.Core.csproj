@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
 	<Description>Goes through http://www.smogon.com/forums/ and saves all teams it finds.</Description>
 	<Authors>FullLifeGames</Authors>
 	<Copyright>FullLifeGames</Copyright>

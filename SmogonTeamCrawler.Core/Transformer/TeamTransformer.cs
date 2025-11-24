@@ -156,6 +156,10 @@ namespace SmogonTeamCrawler.Core.Transformer
             {
                 return toWorkWithGen + "battlestadiumsingles";
             }
+            else if (workingTier.Contains("aaarchive"))
+            {
+                return toWorkWithGen + "almostanyability";
+            }
 
             var trimUrl = url.Replace("-", " ").ToLower();
             foreach (var key in _mappingWithSpace.Keys)
