@@ -22,8 +22,8 @@ namespace SmogonTeamCrawler.Tests
         {
             var scanResult = _teamCrawler.Scanner.Scan().Result;
 
-            Assert.IsTrue(scanResult.TierToRegularLinks.Count > 0);
-            Assert.IsTrue(scanResult.TierToRmtLinks.Count > 0);
+            Assert.That(scanResult.TierToRegularLinks.Count > 0);
+            Assert.That(scanResult.TierToRmtLinks.Count > 0);
         }
 
         [Test]
@@ -36,13 +36,13 @@ namespace SmogonTeamCrawler.Tests
             ).Result;
             collectedTeams.Add("gen8ou", result.CollectedTeams);
 
-            Assert.IsTrue(collectedTeams.Count > 0);
+            Assert.That(collectedTeams.Count > 0);
 
             var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
-            Assert.IsTrue(output.Length > 0);
+            Assert.That(output.Length > 0);
 
             var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
-            Assert.IsTrue(transformation.Count > 0);
+            Assert.That(transformation.Count > 0);
         }
 
         [Test]
@@ -55,13 +55,13 @@ namespace SmogonTeamCrawler.Tests
             ).Result;
             collectedTeams.Add("gen4ou", result.CollectedTeams);
 
-            Assert.IsTrue(collectedTeams.Count > 0);
+            Assert.That(collectedTeams.Count > 0);
 
             var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
-            Assert.IsTrue(output.Length > 0);
+            Assert.That(output.Length > 0);
 
             var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
-            Assert.IsTrue(transformation.Count > 0);
+            Assert.That(transformation.Count > 0);
         }
 
         [Test]
@@ -71,14 +71,14 @@ namespace SmogonTeamCrawler.Tests
             var scanResult = new Dictionary<string, string>() { { "BDSP Metagames", "https://www.smogon.com/forums/forums/bdsp-metagames.699/" } };
 
             var collectedTeams = _teamCrawler.Collector.Collect(scanResult, false).Result;
-            Assert.IsTrue(collectedTeams.Count > 0);
+            Assert.That(collectedTeams.Count > 0);
 
             var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
-            Assert.IsTrue(output.Length > 0);
+            Assert.That(output.Length > 0);
 
             var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
-            Assert.IsTrue(transformation.Count > 0);
-            Assert.IsTrue(transformation.Keys.Any((key) => key.Contains("gen8bdsp")));
+            Assert.That(transformation.Count > 0);
+            Assert.That(transformation.Keys.Any((key) => key.Contains("gen8bdsp")));
         }
 
         [Test]
@@ -88,14 +88,14 @@ namespace SmogonTeamCrawler.Tests
             var scanResult = new Dictionary<string, string>() { { "National Dex", "https://www.smogon.com/forums/forums/national-dex.533/" } };
 
             var collectedTeams = _teamCrawler.Collector.Collect(scanResult, false).Result;
-            Assert.IsTrue(collectedTeams.Count > 0);
+            Assert.That(collectedTeams.Count > 0);
 
             var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
-            Assert.IsTrue(output.Length > 0);
+            Assert.That(output.Length > 0);
 
             var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
-            Assert.IsTrue(transformation.Count > 0);
-            Assert.IsTrue(transformation.Keys.Any((key) => key.Contains("gen8nationaldex")));
+            Assert.That(transformation.Count > 0);
+            Assert.That(transformation.Keys.Any((key) => key.Contains("gen8nationaldex")));
         }
 
         [Test]
@@ -105,14 +105,14 @@ namespace SmogonTeamCrawler.Tests
             var scanResult = new Dictionary<string, string>() { { "SM", "https://www.smogon.com/forums/forums/sm/" } };
 
             var collectedTeams = _teamCrawler.Collector.Collect(scanResult, false).Result;
-            Assert.IsTrue(collectedTeams.Count > 0);
+            Assert.That(collectedTeams.Count > 0);
 
             var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
-            Assert.IsTrue(output.Length > 0);
+            Assert.That(output.Length > 0);
 
             var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
-            Assert.IsTrue(transformation.Count > 0);
-            Assert.IsTrue(transformation.Keys.Any((key) => key.Contains("gen7letsgo")));
+            Assert.That(transformation.Count > 0);
+            Assert.That(transformation.Keys.Any((key) => key.Contains("gen7letsgo")));
         }
 
         [Test]
@@ -125,7 +125,7 @@ namespace SmogonTeamCrawler.Tests
                 RMTForum = true,
             });
 
-            Assert.IsTrue(result.TeamsByTier.Count > 0);
+            Assert.That(result.TeamsByTier.Count > 0);
         }
     }
 }

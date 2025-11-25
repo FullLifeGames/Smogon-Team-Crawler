@@ -23,13 +23,16 @@ namespace SmogonTeamCrawler.Core.Scanner
             var scanStartOne = false;
             var scanStartTwo = false;
 
-            foreach (var line in smogonMain.Split('\n'))
+            var lines = smogonMain.Split('\n');
+            for (var i = 0; i < lines.Length; i++)
             {
+                var line = lines[i];
+                var nextLine = i +1 < lines.Length ? lines[i + 1] : "";
                 if (scanStartZero)
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, scanResult.TierToRegularLinks, true);
+                        GetAndAddURL(line, nextLine, scanResult.TierToRegularLinks, true);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -40,7 +43,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, scanResult.TierToRegularLinks, false, true);
+                        GetAndAddURL(line, nextLine, scanResult.TierToRegularLinks, false, true);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -51,7 +54,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, scanResult.TierToRmtLinks);
+                        GetAndAddURL(line, nextLine, scanResult.TierToRmtLinks);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -79,13 +82,16 @@ namespace SmogonTeamCrawler.Core.Scanner
 
             smogonMain = await Common.HttpClient.GetStringAsync(Common.ARCHIVE_URL).ConfigureAwait(false);
             scanStartTwo = false;
-            foreach (var line in smogonMain.Split('\n'))
+            lines = smogonMain.Split('\n');
+            for (var i = 0; i < lines.Length; i++)
             {
+                var line = lines[i];
+                var nextLine = i + 1 < lines.Length ? lines[i + 1] : "";
                 if (scanStartTwo)
                 {
                     if (line.Contains(LINE_CLASS_IDENTIFIER))
                     {
-                        GetAndAddURL(line, scanResult.TierToRmtLinks);
+                        GetAndAddURL(line, nextLine, scanResult.TierToRmtLinks);
                     }
                     else if (line.Contains(SCAN_ENDPOINT))
                     {
@@ -93,7 +99,7 @@ namespace SmogonTeamCrawler.Core.Scanner
                         break;
                     }
                 }
-                else if (line.Contains(">2007 - 2019 Rate My Team<"))
+                else if (line.Contains("2020 - 2023 B101 Resources"))
                 {
                     scanStartTwo = true;
                 }
@@ -102,10 +108,9 @@ namespace SmogonTeamCrawler.Core.Scanner
             return scanResult;
         }
 
-        private static void GetAndAddURL(string line, IDictionary<string, string> addition, bool useNewGen = false, bool useCurrentGen = false)
+        private static void GetAndAddURL(string line, string nextLine, IDictionary<string, string> addition, bool useNewGen = false, bool useCurrentGen = false)
         {
-            var urlName = line[(line.IndexOf(">") + 1)..];
-            urlName = urlName[..urlName.IndexOf("<")];
+            var urlName = nextLine[(nextLine.LastIndexOf(">") + 1)..];
             if (useNewGen)
             {
                 urlName = Common.NewestGen + urlName;
@@ -119,7 +124,7 @@ namespace SmogonTeamCrawler.Core.Scanner
             url = url[..url.IndexOf('"')];
             url = "https://www.smogon.com" + url;
 
-            addition.Add(urlName, url);
+            addition.TryAdd(urlName, url);
         }
     }
 }
