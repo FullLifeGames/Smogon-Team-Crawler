@@ -335,7 +335,7 @@ namespace SmogonTeamCrawler.Core.Collector
                     }
                     tempLikeString = tempLikeString[(tempLikeString.IndexOf("and") + "and".Length)..].Trim();
                     tempLikeString = tempLikeString[..tempLikeString.IndexOf(" ")];
-                    likes += int.Parse(tempLikeString);
+                    likes += int.Parse(tempLikeString, NumberStyles.Any);
                 }
                 else if (line.Contains("1 other person</a>"))
                 {
