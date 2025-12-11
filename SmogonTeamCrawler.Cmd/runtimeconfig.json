@@ -1,0 +1,19 @@
+{
+  "runtimeOptions": {
+    "tfm": "net8.0",
+    "framework": {
+      "name": "Microsoft.NETCore.App",
+      "version": "8.0.0"
+    },
+    "configProperties": {
+      "System.GC.Server": true,
+      "System.GC.Concurrent": true,
+      "System.GC.HeapHardLimit": 1073741824,
+      "System.GC.HeapHardLimitPercent": 0,
+      "System.GC.RetainVM": false,
+      "System.GC.Gen0HeapSize": 268435456,
+      "System.GC.Gen0HeapCount": 0,
+      "System.GC.TotalHeapSize": 0
+    }
+  }
+}

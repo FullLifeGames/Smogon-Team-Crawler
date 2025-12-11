@@ -65,6 +65,27 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public void Crawl_Single_Date_Test()
+        {
+            var collectedTeams = new Dictionary<string, ICollection<Team>>();
+            var result = _teamCrawler.Collector.AnalyzeThread(
+                "https://www.smogon.com/forums/threads/sv-ou-metagame-discussion-v2-update-on-post-5186.3722192/",
+                "gen9ou"
+            ).Result;
+            collectedTeams.Add("gen9ou", result.CollectedTeams);
+
+            Assert.That(result.CollectedTeams.Count > 0);
+
+            Assert.That(result.CollectedTeams.Any(team => team.PostedBy == "Delibird Heart" && team.PostDate < System.DateTime.Now.AddYears(-1)));
+
+            var output = _teamCrawler.Formatter.FormatOutput(collectedTeams);
+            Assert.That(output.Length > 0);
+
+            var transformation = _teamCrawler.Transformer.Transform(collectedTeams, new Dictionary<string, ICollection<Team>>());
+            Assert.That(transformation.Count > 0);
+        }
+
+        [Test]
         [Explicit]
         public void Crawl_Single_BDSP()
         {

@@ -1,64 +1,103 @@
 ﻿using NeoSmart.Caching.Sqlite;
 using Newtonsoft.Json;
 
-var teamCrawler = new SmogonTeamCrawler.Core.Crawler.SmogonTeamCrawler(
-    new SqliteCache(
-        new SqliteCacheOptions()
+try
+{
+    // Configure memory optimization for Linux environments
+    var folderPath = "Teams/";
+    Directory.CreateDirectory(folderPath);
+
+    var teamCrawler = new SmogonTeamCrawler.Core.Crawler.SmogonTeamCrawler(
+        new SqliteCache(
+            new SqliteCacheOptions()
+            {
+                MemoryOnly = false,
+                CachePath = "SmogonDump.db",
+            }
+        )
+    );
+
+    var crawlRequest = new SmogonTeamCrawler.Core.Data.CrawlRequest()
+    {
+        MainForum = true,
+        RMTForum = true,
+    };
+
+    Console.WriteLine("Starting team crawl...");
+    var crawlResult = await teamCrawler.CrawlAsync(crawlRequest).ConfigureAwait(false);
+    
+    // Force garbage collection after crawling to free memory
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    Console.WriteLine($"Memory after crawl: {GC.GetTotalMemory(false) / (1024 * 1024)}MB");
+
+    Console.WriteLine("Writing team data to files...");
+    foreach (var outputs in crawlResult.TeamsByTier)
+    {
+        var tempImportable = outputs.Value.Replace("\n", "\r\n");
+        var tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
+
+        var localFilePath = folderPath + tempTier.Replace("[", "").Replace("]", "") + ".txt";
+        Console.WriteLine($"Write {localFilePath}");
+        await File.WriteAllTextAsync(
+            localFilePath,
+            tempImportable
+        ).ConfigureAwait(false);
+    }
+
+    // Force garbage collection after writing team strings
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    Console.WriteLine($"Memory after tier files: {GC.GetTotalMemory(false) / (1024 * 1024)}MB");
+
+    foreach (var outputs in crawlResult.CreatedTeamsByTiers)
+    {
+        var tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
+
+        // serialize JSON directly to a file with streaming to reduce memory
+        var localFilePath = folderPath + tempTier.Replace("[", "").Replace("]", "") + ".json";
+        Console.WriteLine($"Write {localFilePath}");
+        using (var file = File.CreateText(localFilePath))
         {
-            MemoryOnly = false,
-            CachePath = "SmogonDump.db",
+            var serializer = new JsonSerializer();
+            serializer.Serialize(file, outputs.Value);
         }
-    )
-);
-
-var crawlRequest = new SmogonTeamCrawler.Core.Data.CrawlRequest()
-{
-    MainForum = true,
-    RMTForum = true,
-};
-
-var crawlResult = await teamCrawler.CrawlAsync(crawlRequest).ConfigureAwait(false);
-
-foreach (var outputs in crawlResult.TeamsByTier)
-{
-    var tempImportable = outputs.Value.Replace("\n", "\r\n");
-    var tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
-
-    await File.WriteAllTextAsync(
-        tempTier.Replace("[", "").Replace("]", "") + ".txt",
-        tempImportable
-    ).ConfigureAwait(false);
-}
-
-foreach (var outputs in crawlResult.CreatedTeamsByTiers)
-{
-    var tempTier = (outputs.Key != "") ? outputs.Key : "undefined";
+    }
 
     // serialize JSON directly to a file
-    using (var file = File.CreateText(tempTier.Replace("[", "").Replace("]", "") + ".json"))
+    var filePath = folderPath + "finalJson.txt";
+    Console.WriteLine($"Write {filePath}");
+    using (var file = File.CreateText(filePath))
     {
         var serializer = new JsonSerializer();
-        serializer.Serialize(file, outputs.Value);
+        serializer.Serialize(file, crawlResult.TeamsByTier);
     }
-}
 
-// serialize JSON directly to a file
-using (var file = File.CreateText("finalJson.txt"))
-{
-    var serializer = new JsonSerializer();
-    serializer.Serialize(file, crawlResult.TeamsByTier);
-}
+    // serialize JSON directly to a file
+    filePath = folderPath + "final.json";
+    Console.WriteLine($"Write {filePath}");
+    using (var file = File.CreateText(filePath))
+    {
+        var serializer = new JsonSerializer();
+        serializer.Serialize(file, crawlResult.TeamsByTier);
+    }
 
-// serialize JSON directly to a file
-using (var file = File.CreateText("final.json"))
-{
-    var serializer = new JsonSerializer();
-    serializer.Serialize(file, crawlResult.TeamsByTier);
+    // serialize JSON directly to a file
+    filePath = folderPath + "finalCollected.json";
+    Console.WriteLine($"Write {filePath}");
+    using (var file = File.CreateText(filePath))
+    {
+        var serializer = new JsonSerializer();
+        serializer.Serialize(file, crawlResult.CreatedTeamsByTiers);
+    }
+    
+    // Final GC
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    Console.WriteLine("Crawl completed successfully!");
 }
-
-// serialize JSON directly to a file
-using (var file = File.CreateText("finalCollected.json"))
+catch (Exception e)
 {
-    var serializer = new JsonSerializer();
-    serializer.Serialize(file, crawlResult.CreatedTeamsByTiers);
+    Console.WriteLine($"Unknown error occured during execution: {e.Message}");
+    Console.WriteLine(e.StackTrace);
 }

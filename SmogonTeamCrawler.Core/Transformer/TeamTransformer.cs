@@ -52,11 +52,13 @@ namespace SmogonTeamCrawler.Core.Transformer
             var teamByActualTiers = CreateTeamsByTiers(smogonTeams, rmts);
 
             var tierOutputs = new Dictionary<string, string>();
-            var finalImportable = "";
+            var finalImportable = new StringBuilder();
             var smogonTeamCount = 1;
+            
             foreach (var tier in teamByActualTiers)
             {
-                var importable = new StringBuilder("");
+                var importable = new StringBuilder();
+                
                 foreach (var team in tier.Value)
                 {
                     var tierDef = team.Definition;
@@ -76,11 +78,13 @@ namespace SmogonTeamCrawler.Core.Transformer
                     {
                         if (lines[i].StartsWith("-") && lines[i].Contains('/'))
                         {
-                            lines[i] = lines[i][..lines[i].IndexOf("/")];
+                            var slashIndex = lines[i].IndexOf("/");
+                            lines[i] = lines[i][..slashIndex];
                         }
                         if (lines[i].Contains(']'))
                         {
-                            lines[i] = lines[i][..(lines[i].IndexOf("]") + 1)];
+                            var bracketIndex = lines[i].IndexOf("]");
+                            lines[i] = lines[i][..(bracketIndex + 1)];
                         }
                     }
                     var betterTeamString = string.Join("\n", lines);
@@ -90,23 +94,23 @@ namespace SmogonTeamCrawler.Core.Transformer
                     importable.Append(showdownTier).Append(' ');
                     importable.Append(tierDef).Append('/');
 
-                    var teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)(team.Koeffizient)) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "") + " " + team.URL;
+                    var teamString = "#" + smogonTeamCount + " " + team.Likes + " Likes " + ((int)team.Koeffizient) + " Score posted by " + team.PostedBy + ((team.TeamTitle != null) ? (" " + team.TeamTitle) : "") + " " + team.URL;
                     importable.Append(teamString);
                     Console.WriteLine(teamString);
 
                     importable.Append(" ===\n\n");
-
                     importable.Append(betterTeamString);
-
                     importable.Append("\n\n\n\n");
 
                     smogonTeamCount++;
                 }
-                finalImportable += importable;
-                tierOutputs.Add(tier.Key, importable.ToString());
+                
+                var tierOutput = importable.ToString();
+                finalImportable.Append(tierOutput);
+                tierOutputs.Add(tier.Key, tierOutput);
             }
 
-            tierOutputs.Add("importable", finalImportable);
+            tierOutputs.Add("importable", finalImportable.ToString());
 
             return tierOutputs;
         }
@@ -262,7 +266,7 @@ namespace SmogonTeamCrawler.Core.Transformer
                     }
                     if (!teamByActualTiers.ContainsKey(showdownTier))
                     {
-                        teamByActualTiers.Add(showdownTier, new List<Team>());
+                        teamByActualTiers.Add(showdownTier, []);
                     }
                     team.Definition = tierDef;
                     team.RMT = false;
@@ -292,7 +296,7 @@ namespace SmogonTeamCrawler.Core.Transformer
                     }
                     if (!teamByActualTiers.ContainsKey(showdownTier))
                     {
-                        teamByActualTiers.Add(showdownTier, new List<Team>());
+                        teamByActualTiers.Add(showdownTier, []);
                     }
                     team.Definition = tierDef;
                     team.RMT = true;

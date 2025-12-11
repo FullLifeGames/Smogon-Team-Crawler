@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 
 namespace SmogonTeamCrawler.Core.Data
 {
@@ -6,6 +7,7 @@ namespace SmogonTeamCrawler.Core.Data
     {
         public bool BlockStarted { get; set; }
         public string BlockText { get; set; } = "";
+        public StringBuilder? BlockTextBuilder { get; set; }
         public bool PostStarted { get; set; }
         public int PostLikes { get; set; }
         public DateTime PostDate { get; set; } = DateTime.Now;

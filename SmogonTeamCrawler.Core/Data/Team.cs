@@ -15,7 +15,7 @@ namespace SmogonTeamCrawler.Core.Data
                 RegexTeam = Common.TeamRegex.Replace(_teamString, "");
             }
         }
-        private string RegexTeam { get; set; } = null!;
+        public string RegexTeam { get; private set; } = null!;
         public int Likes { get; set; }
         public DateTime PostDate { get; set; }
         public string URL { get; set; }
@@ -32,9 +32,7 @@ namespace SmogonTeamCrawler.Core.Data
         public double Koeffizient { get {
             return Likes *
                 (1.0 /
-                    (
-                        Math.Exp(Common.KoeffScale * (DateTime.Now.Subtract(PostDate).TotalMinutes / 60.0 / 24.0 / 365.0))
-                    )
+                    Math.Exp(Common.KoeffScale * (DateTime.Now.Subtract(PostDate).TotalMinutes / 60.0 / 24.0 / 365.0))
                 );
         } }
 

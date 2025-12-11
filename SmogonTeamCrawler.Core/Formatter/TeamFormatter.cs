@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace SmogonTeamCrawler.Core.Formatter
 {
@@ -9,7 +10,7 @@ namespace SmogonTeamCrawler.Core.Formatter
     {
         public string FormatOutput(IDictionary<string, ICollection<Team>> teamsForTiers)
         {
-            var output = "";
+            var output = new StringBuilder();
             foreach (var key in teamsForTiers.Keys.ToList())
             {
                 if (teamsForTiers[key].Count == 0)
@@ -17,52 +18,58 @@ namespace SmogonTeamCrawler.Core.Formatter
                     continue;
                 }
 
-                output += "Smogon (" + key + "):\n\n";
+                output.Append("Smogon (").Append(key).Append("):\n\n");
                 teamsForTiers[key] = RemoveDuplicates(teamsForTiers[key]);
-                ((List<Team>) teamsForTiers[key]).Sort((t1, t2) => t2.Koeffizient.CompareTo(t1.Koeffizient));
+                var teamList = (List<Team>)teamsForTiers[key];
+                teamList.Sort((t1, t2) => t2.Koeffizient.CompareTo(t1.Koeffizient));
 
-                foreach (Team team in teamsForTiers[key])
+                foreach (var team in teamList)
                 {
                     var lineup = GetTeamLineupString(team.TeamString);
                     team.TeamLineUp = lineup;
-                    var outputString = "";
                     var lines = new List<string>();
-                    foreach (var monData in team.TeamString.Split(new string[] { "\n\n" }, StringSplitOptions.None))
+                    foreach (var monData in team.TeamString.Split(["\n\n"], StringSplitOptions.None))
                     {
                         if (!monData.Contains('\n'))
                         {
                             lines.Add(monData);
                             continue;
                         }
-                        var mon = monData[..monData.IndexOf("\n")];
+                        var monIndex = monData.IndexOf("\n");
+                        var mon = monData[..monIndex];
                         mon = mon.Replace(":", "");
-                        lines.Add(string.Concat(mon, monData.AsSpan(monData.IndexOf("\n"))));
+                        lines.Add(string.Concat(mon, monData.AsSpan(monIndex)));
                     }
-                    outputString = string.Join("\n\n", lines);
-                    output += lineup + ":\n" + team.URL + "\n" + team.PostedBy + "\n" + team.PostDate.ToString() + "\n" + team.Likes + " Likes\n" + team.Koeffizient + " Calculated Value\n\n" + outputString + "\n\n\n";
+                    var outputString = string.Join("\n\n", lines);
+                    output.Append(lineup).Append(":\n")
+                          .Append(team.URL).Append("\n")
+                          .Append(team.PostedBy).Append("\n")
+                          .Append(team.PostDate.ToString()).Append("\n")
+                          .Append(team.Likes).Append(" Likes\n")
+                          .Append(team.Koeffizient).Append(" Calculated Value\n\n")
+                          .Append(outputString).Append("\n\n\n");
                 }
 
-                output += "\n";
+                output.Append("\n");
             }
-            return output;
+            return output.ToString();
         }
 
         private static ICollection<Team> RemoveDuplicates(ICollection<Team> value)
         {
             var uniqueTeams = new List<Team>();
+            var seenHashes = new HashSet<string>();
+            
             foreach (var team in value)
             {
-                bool unique = true;
-                foreach (var uniqueTeam in uniqueTeams)
+                var teamHash = team.RegexTeam ?? "";
+                
+                if (string.IsNullOrEmpty(teamHash) || !seenHashes.Contains(teamHash))
                 {
-                    if (uniqueTeam.EqualsOrEmpty(team))
+                    if (!string.IsNullOrEmpty(teamHash))
                     {
-                        unique = false;
-                        break;
+                        seenHashes.Add(teamHash);
                     }
-                }
-                if (unique)
-                {
                     uniqueTeams.Add(team);
                 }
             }
@@ -72,23 +79,28 @@ namespace SmogonTeamCrawler.Core.Formatter
         private static string GetTeamLineupString(string teamString)
         {
             var mons = new List<string>();
-            foreach (var monData in teamString.Split(new string[] { "\n\n" }, StringSplitOptions.None))
+            foreach (var monData in teamString.Split(["\n\n"], StringSplitOptions.None))
             {
                 if (!monData.Contains('\n'))
                 {
                     continue;
                 }
-                var mon = monData[..monData.IndexOf("\n")];
-                mon = mon.Replace("(M)", "");
-                mon = mon.Replace("(F)", "");
+                var monIndex = monData.IndexOf("\n");
+                var mon = monData[..monIndex];
+                mon = mon.Replace("(M)", "").Replace("(F)", "");
                 if (mon.Contains('@'))
                 {
-                    mon = mon[..mon.IndexOf("@")].Trim();
+                    var atIndex = mon.IndexOf('@');
+                    mon = mon[..atIndex].Trim();
                 }
                 if (mon.Contains('(') && mon.Contains(')'))
                 {
-                    mon = mon[(mon.IndexOf("(") + 1)..];
-                    mon = mon[..mon.IndexOf(")")];
+                    var openIndex = mon.IndexOf('(') + 1;
+                    var closeIndex = mon.IndexOf(')');
+                    if (closeIndex > openIndex)
+                    {
+                        mon = mon[openIndex..closeIndex];
+                    }
                 }
                 mons.Add(mon.Trim());
             }

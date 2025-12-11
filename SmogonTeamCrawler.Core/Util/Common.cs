@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace SmogonTeamCrawler.Core.Util
 {
-    public static class Common
+    public static partial class Common
     {
         private static HttpClient? _httpClient;
         public static HttpClient HttpClient
@@ -19,13 +19,16 @@ namespace SmogonTeamCrawler.Core.Util
         public static string CurrentGen { get; set; } = "gen8";
         public static string NewestGen { get; set; } = "gen9";
 
-        public static string[] HardCodedBlacklistedPastes { get; set; } = new string[] { "spEtvevT", "Cyg8Rp53", "c6EFsDjr", "a155d09dc696b334" };
+        public static string[] HardCodedBlacklistedPastes { get; set; } = ["spEtvevT", "Cyg8Rp53", "c6EFsDjr", "a155d09dc696b334"];
 
-        public static double KoeffScale { get; set; } = 3;
+        public static double KoeffScale { get; set; } = 1.1;
 
-        public static Regex TeamRegex { get; set; } = new("[^0-9a-zA-Z]+");
+        [GeneratedRegex("[^0-9a-zA-Z]+")]
+        private static partial Regex TeamRegexGenerated();
+        public static Regex TeamRegex { get; set; } = TeamRegexGenerated();
 
         public static string SMOGON_FORUMS_URL { get; set; } = "https://www.smogon.com/forums/";
         public static string ARCHIVE_URL { get; set; } = "https://www.smogon.com/forums/categories/site-projects-archive.423/";
+
     }
 }
