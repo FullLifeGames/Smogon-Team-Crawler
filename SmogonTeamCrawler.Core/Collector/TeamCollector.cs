@@ -1,11 +1,11 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
-using Newtonsoft.Json;
 using SmogonTeamCrawler.Core.Data;
 using SmogonTeamCrawler.Core.Util;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -13,159 +13,361 @@ using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Core.Collector
 {
+    /// <summary>
+    /// Collects teams from Smogon forums. With a persistent cache, a run only reads what changed since the last run:
+    /// listing pages up to the first known, unchanged thread, and of changed threads only the pages from the last known page on
+    /// (plus pages with recent posts, see <see cref="CollectorOptions.RecentPageRefreshWindow"/>).
+    /// </summary>
     public partial class TeamCollector : ICollector
     {
+        private const int MaxUnexpectedThreadPagesInARow = 5;
+
+        private readonly CrawlStateStore _store;
+        private readonly CollectorOptions _options;
+        private readonly HttpClient _httpClient;
+        private int _unexpectedThreadPagesInARow;
+
         public TeamCollector() : this(null)
         {
         }
 
-        private readonly IDistributedCache? _cache;
-        public TeamCollector(IDistributedCache? cache)
+        public TeamCollector(IDistributedCache? cache) : this(cache, null)
         {
-            _cache = cache;
+        }
+
+        public TeamCollector(IDistributedCache? cache, CollectorOptions? options)
+        {
+            _options = options ?? new CollectorOptions();
+            _store = new CrawlStateStore(cache ?? new InMemoryDistributedCache());
+            _httpClient = _options.HttpClient ?? Common.HttpClient;
         }
 
         public async Task<IDictionary<string, ICollection<Team>>> Collect(IDictionary<string, string> tierToLinks, bool prefixUsage)
         {
-            var collectedTeams = new ConcurrentDictionary<string, ICollection<Team>>();
-
-            // Limit parallelism to prevent memory exhaustion on Linux
-            var parallelOptions = new ParallelOptions 
-            { 
-                MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
-            };
-
-            await Parallel.ForEachAsync(tierToLinks, parallelOptions, async (kv, _) =>
-                await CollectFromForum(collectedTeams, kv.Key, kv.Value, prefixUsage).ConfigureAwait(false)).ConfigureAwait(false);
-
+            // Sequential on purpose: all forums live on one host, so parallel forums would not be faster
+            // under the per-host request limit, only harder to follow.
+            var collectedTeams = new Dictionary<string, ICollection<Team>>();
+            foreach (var kv in tierToLinks)
+            {
+                await CollectFromForum(collectedTeams, kv.Key, kv.Value, prefixUsage).ConfigureAwait(false);
+            }
             return collectedTeams;
         }
 
         public async Task CollectFromForum(IDictionary<string, ICollection<Team>> collectedTeams, string tier, string url, bool prefixUsage)
         {
+            var forum = _store.GetForum(url) ?? new ForumCrawlState();
+            var incremental = forum.Complete && !_options.FullRefresh;
+            var oldWatermark = forum.Watermark;
+            var newWatermark = oldWatermark;
+
+            // Listings are sorted by latest post. Once a non-sticky thread is not newer than the last run,
+            // every thread after it is unchanged too.
+            var listed = new List<ThreadListItem>();
             var pages = 1;
-            for (var pageCount = 1; pageCount <= pages; pageCount++)
+            var listingPages = 0;
+            var walkedAllPages = true;
+            for (var page = 1; page <= pages; page++)
             {
-                var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount).ConfigureAwait(false);
-                if (pages == 1)
+                var pageUrl = SmogonPages.PageUrl(url, page);
+                var site = await GetPageAsync(pageUrl).ConfigureAwait(false);
+                SmogonPages.EnsureTemplate(site, pageUrl, "forum_view");
+                listingPages++;
+                if (page == 1)
                 {
-                    pages = GetNumberOfPages(site);
+                    pages = SmogonPages.GetNumberOfPages(site);
                 }
 
-                var prefix = "";
-
-                foreach (var line in site.Split('\n'))
+                var reachedKnownThreads = false;
+                foreach (var item in ForumListingParser.Parse(site))
                 {
-                    if (line.Contains("<span class=\"label"))
+                    listed.Add(item);
+                    newWatermark = Math.Max(newWatermark, item.LatestPostTimestamp);
+                    if (incremental && !item.Sticky && item.LatestPostTimestamp <= oldWatermark)
                     {
-                        prefix = line[(line.IndexOf("<span class=\"label") + 1)..];
-                        prefix = prefix[(prefix.IndexOf(">") + 1)..];
-                        prefix = prefix[..prefix.IndexOf("<")];
+                        reachedKnownThreads = true;
                     }
-                    else if (line.Contains("data-preview-url"))
-                    {
-                        var tempInside = line[(line.IndexOf("data-preview-url") + "data-preview-url".Length)..];
-                        tempInside = tempInside[(tempInside.IndexOf("\"") + 1)..];
-                        if (!tempInside.Contains("/preview"))
-                        {
-                            continue;
-                        }
-                        tempInside = tempInside[..(tempInside.IndexOf("/preview") + 1)];
-                        var fullUrl = "https://www.smogon.com" + tempInside;
-                        Console.WriteLine("Currently Scanning: " + fullUrl);
-                        var identifier = prefixUsage ? prefix : tier;
-                        if (!collectedTeams.ContainsKey(identifier))
-                        {
-                            collectedTeams.Add(identifier, []);
-                        }
+                }
+                if (reachedKnownThreads)
+                {
+                    walkedAllPages = page == pages;
+                    break;
+                }
+            }
 
-                        ThreadAnalyzeResult analyzeResult;
-                        if (await LastIdIsCurrent(fullUrl))
-                        {
-                            analyzeResult = JsonConvert.DeserializeObject<ThreadAnalyzeResult>(_cache!.GetString(fullUrl)!)!;
-                            foreach (var entry in analyzeResult.CollectedTeams)
-                            {
-                                collectedTeams[identifier].Add(entry);
-                            }
-                        }
-                        else
-                        {
-                            analyzeResult = await AnalyzeThread(fullUrl, prefix).ConfigureAwait(false);
-                            foreach (var entry in analyzeResult.CollectedTeams)
-                            {
-                                collectedTeams[identifier].Add(entry);
-                            }
-                            _cache?.SetString(fullUrl, JsonConvert.SerializeObject(analyzeResult));
-                        }
-                        Console.WriteLine("Added " + analyzeResult.CollectedTeams.Count + " Teams");
-                        Console.WriteLine();
-                        prefix = "";
+            var updatedThreads = 0;
+            var seen = new HashSet<long>();
+            var toUpdate = new List<ThreadListItem>();
+            foreach (var item in listed)
+            {
+                // The same thread can show up twice if the listing shifted while paging.
+                if (seen.Add(item.ThreadId))
+                {
+                    forum.Threads[item.ThreadId] = new ForumThreadEntry { Url = item.Url, Prefix = item.Prefix };
+                    toUpdate.Add(item);
+                }
+            }
+            toUpdate.AddRange(forum.RetryThreads.Values.Where(item => !seen.Contains(item.ThreadId)));
+
+            foreach (var item in toUpdate)
+            {
+                var result = await UpdateThreadAsync(item, url).ConfigureAwait(false);
+                if (result == ThreadUpdate.Updated)
+                {
+                    updatedThreads++;
+                }
+                if (result == ThreadUpdate.Failed)
+                {
+                    forum.RetryThreads[item.ThreadId] = item;
+                }
+                else
+                {
+                    forum.RetryThreads.Remove(item.ThreadId);
+                }
+            }
+
+            if (walkedAllPages)
+            {
+                // Threads missing from a complete listing were deleted or moved away.
+                foreach (var threadId in forum.Threads.Keys.Where(id => !seen.Contains(id)).ToList())
+                {
+                    forum.Threads.Remove(threadId);
+                    forum.RetryThreads.Remove(threadId);
+                }
+            }
+
+            var teamCount = 0;
+            foreach (var (threadId, entry) in forum.Threads.ToList())
+            {
+                var state = _store.GetThread(threadId);
+                if (state == null)
+                {
+                    continue;
+                }
+                if (state.ForumUrl.Length > 0 && state.ForumUrl != url)
+                {
+                    // Moved to another forum, which lists it from now on
+                    forum.Threads.Remove(threadId);
+                    continue;
+                }
+
+                var identifier = prefixUsage ? entry.Prefix : tier;
+                if (!collectedTeams.TryGetValue(identifier, out var teams))
+                {
+                    teams = new List<Team>();
+                    collectedTeams.Add(identifier, teams);
+                }
+                foreach (var page in state.Pages.OrderBy(kv => kv.Key))
+                {
+                    foreach (var team in page.Value.Teams)
+                    {
+                        teams.Add(team);
+                        teamCount++;
                     }
                 }
             }
+
+            forum.Watermark = newWatermark;
+            forum.Complete = true;
+            forum.LastCrawl = DateTime.UtcNow;
+            _store.SetForum(url, forum);
+
+            Console.WriteLine($"{tier}: {listingPages} listing page(s) read, {updatedThreads} thread(s) updated, {forum.Threads.Count} thread(s) known, {teamCount} team(s)");
         }
 
-        private async Task<bool> LastIdIsCurrent(string fullUrl)
+        private enum ThreadUpdate
         {
-            if (_cache == null)
-            {
-                return false;
-            }
-
-            string? cachedResults = null;
-            try
-            {
-                cachedResults = _cache.GetString(fullUrl);
-            }
-            catch (NullReferenceException)
-            {
-            }
-            if (cachedResults == null)
-            {
-                return false;
-            }
-
-            var analyzeResult = JsonConvert.DeserializeObject<ThreadAnalyzeResult>(cachedResults);
-            if (analyzeResult == null)
-            {
-                return false;
-            }
-
-            // If the last post is older than two years, assumption is that no new activity with relevant teams will be posted
-            if (analyzeResult.LastPost < DateTime.Now.AddYears(-2))
-            {
-                return true;
-            }
-
-            var site = await Common.HttpClient.GetStringAsync(fullUrl + "page-" + analyzeResult.NumberOfPages).ConfigureAwait(false);
-            var numberOfPages = GetNumberOfPages(site);
-            if (numberOfPages != analyzeResult.NumberOfPages)
-            {
-                return false;
-            }
-
-            var lineDataHandler = new LineDataHandler();
-            foreach (var line in site.Split('\n'))
-            {
-                if (line.Contains("<header class=\"message-attribution message-attribution--split\">"))
-                {
-                    lineDataHandler.TimerHeader = true;
-                }
-                else if (line.Contains("data-date-string=\"") && lineDataHandler.TimerHeader)
-                {
-                    var temp = line[(line.IndexOf("data-date-string=\"") + "data-date-string=\"".Length)..];
-                    temp = temp[(temp.IndexOf("title") + "title".Length)..];
-                    temp = temp[(temp.IndexOf("\"") + 1)..];
-                    temp = temp[..temp.IndexOf("\"")];
-                    temp = temp.Replace("at ", "");
-                    lineDataHandler.PostDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                    lineDataHandler.TimerHeader = false;
-                }
-            }
-
-            return lineDataHandler.PostDate == analyzeResult.LastPost;
+            Unchanged,
+            Updated,
+            /// <summary>The thread is gone or not accessible (404, 403, 410).</summary>
+            Gone,
+            /// <summary>The thread could not be read and is tried again next run.</summary>
+            Failed,
         }
 
+        /// <summary>Brings the stored state of a listed thread up to date.</summary>
+        private async Task<ThreadUpdate> UpdateThreadAsync(ThreadListItem item, string forumUrl)
+        {
+            var state = _store.GetThread(item.ThreadId);
+            var migrated = false;
+            if (state == null)
+            {
+                state = MigrateLegacyState(item);
+                migrated = state != null;
+            }
+
+            var changed = _options.FullRefresh
+                || state == null
+                || state.NumberOfPages == 0
+                || state.LatestPostTimestamp != item.LatestPostTimestamp;
+            if (!changed)
+            {
+                if (migrated || state!.ForumUrl != forumUrl || state.Url != item.Url)
+                {
+                    state!.ForumUrl = forumUrl;
+                    state.Url = item.Url;
+                    _store.SetThread(item.ThreadId, state);
+                }
+                return ThreadUpdate.Unchanged;
+            }
+
+            state ??= new ThreadCrawlState();
+            var listedLastPage = Math.Max(1, item.LastPage);
+            var firstPage = _options.FullRefresh || state.NumberOfPages == 0
+                ? 1
+                : Math.Min(state.NumberOfPages, listedLastPage);
+
+            var pagesToRead = new List<int>();
+            if (_options.RecentPageRefreshWindow > TimeSpan.Zero)
+            {
+                var recentSince = DateTime.Now - _options.RecentPageRefreshWindow;
+                pagesToRead.AddRange(state.Pages
+                    .Where(kv => kv.Key < firstPage && kv.Value.NewestPostDate >= recentSince)
+                    .Select(kv => kv.Key)
+                    .OrderBy(page => page));
+            }
+            for (var page = firstPage; page <= listedLastPage; page++)
+            {
+                pagesToRead.Add(page);
+            }
+
+            Console.WriteLine($"Reading {item.Url} (page {FormatPages(pagesToRead)} of {listedLastPage})");
+
+            var numberOfPages = listedLastPage;
+            for (var i = 0; i < pagesToRead.Count; i++)
+            {
+                var page = pagesToRead[i];
+                if (page > numberOfPages)
+                {
+                    break;
+                }
+
+                var pageUrl = SmogonPages.PageUrl(item.Url, page);
+                string site;
+                try
+                {
+                    site = await GetPageAsync(pageUrl).ConfigureAwait(false);
+                }
+                catch (HttpRequestException e) when (e.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden or HttpStatusCode.Gone)
+                {
+                    Console.WriteLine($"Skipping {pageUrl}: HTTP {(int)e.StatusCode!}");
+                    return ThreadUpdate.Gone;
+                }
+                try
+                {
+                    SmogonPages.EnsureThreadPage(site, pageUrl);
+                    _unexpectedThreadPagesInARow = 0;
+                }
+                catch (UnexpectedPageException e)
+                {
+                    // A single odd thread is skipped and retried next run; many in a row mean the markup changed, and the crawl stops.
+                    if (++_unexpectedThreadPagesInARow >= MaxUnexpectedThreadPagesInARow)
+                    {
+                        throw;
+                    }
+                    Console.WriteLine("Skipping thread: " + e.Message);
+                    return ThreadUpdate.Failed;
+                }
+
+                numberOfPages = SmogonPages.GetNumberOfPages(site);
+                if (page > numberOfPages)
+                {
+                    // Posts were deleted and the requested page no longer exists; Smogon served the last page instead.
+                    // Read the real last page next (unless it was read already); the loop then stops at the missing pages.
+                    if (!pagesToRead.Contains(numberOfPages))
+                    {
+                        pagesToRead.Insert(i + 1, numberOfPages);
+                    }
+                    continue;
+                }
+                if (i == pagesToRead.Count - 1 && numberOfPages > page)
+                {
+                    // More pages than the listing showed
+                    for (var extra = page + 1; extra <= numberOfPages; extra++)
+                    {
+                        pagesToRead.Add(extra);
+                    }
+                }
+
+                state.Pages[page] = await AnalyzePageAsync(item.Url, page, site, item.Prefix).ConfigureAwait(false);
+            }
+
+            foreach (var stalePage in state.Pages.Keys.Where(page => page > numberOfPages).ToList())
+            {
+                state.Pages.Remove(stalePage);
+            }
+            state.NumberOfPages = numberOfPages;
+            state.LatestPostTimestamp = item.LatestPostTimestamp;
+            state.Url = item.Url;
+            state.ForumUrl = forumUrl;
+            _store.SetThread(item.ThreadId, state);
+            return ThreadUpdate.Updated;
+        }
+
+        [GeneratedRegex("/page-(\\d+)#")]
+        private static partial Regex TeamUrlPageRegex();
+
+        /// <summary>
+        /// Converts an entry of crawler versions before 3.0 into the new state. If the latest post and the page count still
+        /// match the listing, the thread counts as unchanged and is not read at all; otherwise it is read from its last known page on.
+        /// </summary>
+        private ThreadCrawlState? MigrateLegacyState(ThreadListItem item)
+        {
+            var legacy = _store.GetLegacyThread(item.Url);
+            if (legacy?.CollectedTeams == null)
+            {
+                return null;
+            }
+
+            var state = new ThreadCrawlState
+            {
+                Url = item.Url,
+                NumberOfPages = Math.Max(1, legacy.NumberOfPages),
+            };
+            foreach (var team in legacy.CollectedTeams)
+            {
+                var pageMatch = TeamUrlPageRegex().Match(team.URL ?? "");
+                var page = pageMatch.Success ? int.Parse(pageMatch.Groups[1].Value) : 1;
+                if (!state.Pages.TryGetValue(page, out var pageState))
+                {
+                    pageState = new PageCrawlState();
+                    state.Pages[page] = pageState;
+                }
+                pageState.Teams.Add(team);
+                if (team.PostDate > pageState.NewestPostDate)
+                {
+                    pageState.NewestPostDate = team.PostDate;
+                }
+            }
+
+            if (legacy.NumberOfPages == item.LastPage
+                && TryParseDisplayDate(item.LatestPostDisplayDate, out var latestPost)
+                && latestPost == legacy.LastPost)
+            {
+                state.LatestPostTimestamp = item.LatestPostTimestamp;
+            }
+            return state;
+        }
+
+        private static bool TryParseDisplayDate(string displayDate, out DateTime date) =>
+            DateTime.TryParseExact(displayDate.Replace("at ", ""), "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"), DateTimeStyles.None, out date);
+
+        private static string FormatPages(IList<int> pages)
+        {
+            var parts = new List<string>();
+            for (var i = 0; i < pages.Count; i++)
+            {
+                var start = pages[i];
+                while (i + 1 < pages.Count && pages[i + 1] == pages[i] + 1)
+                {
+                    i++;
+                }
+                parts.Add(start == pages[i] ? start.ToString() : start + "-" + pages[i]);
+            }
+            return string.Join(", ", parts);
+        }
+
+        /// <summary>Reads a whole thread, ignoring any stored state.</summary>
         public async Task<ThreadAnalyzeResult> AnalyzeThread(string url, string? prefix)
         {
             var pages = 1;
@@ -175,20 +377,15 @@ namespace SmogonTeamCrawler.Core.Collector
             {
                 for (var pageCount = 1; pageCount <= pages; pageCount++)
                 {
-                    var site = await Common.HttpClient.GetStringAsync(url + "page-" + pageCount).ConfigureAwait(false);
-                    if (pages == 1)
+                    var pageUrl = SmogonPages.PageUrl(url, pageCount);
+                    var site = await GetPageAsync(pageUrl).ConfigureAwait(false);
+                    SmogonPages.EnsureThreadPage(site, pageUrl);
+                    if (pageCount == 1)
                     {
-                        pages = GetNumberOfPages(site);
+                        pages = SmogonPages.GetNumberOfPages(site);
                     }
 
-                    var lineDataHandler = new LineDataHandler();
-
-                    var currentTeams = new List<string>();
-
-                    foreach (var line in site.Split('\n'))
-                    {
-                        await HandleLine(url, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler).ConfigureAwait(false);
-                    }
+                    var lineDataHandler = await ParsePageAsync(url, pageCount, site, prefix, collectedTeams).ConfigureAwait(false);
                     latestPost = lineDataHandler.PostDate;
                 }
             }
@@ -206,24 +403,30 @@ namespace SmogonTeamCrawler.Core.Collector
             };
         }
 
-        private static int GetNumberOfPages(string site)
+        private async Task<PageCrawlState> AnalyzePageAsync(string url, int pageCount, string site, string? prefix)
         {
-            var pages = 1;
-            if (site.Contains("<nav class=\"pageNavWrapper"))
+            var teams = new List<Team>();
+            var lineDataHandler = await ParsePageAsync(url, pageCount, site, prefix, teams).ConfigureAwait(false);
+            return new PageCrawlState
             {
-                var temp = site;
-                while (temp.Contains("pageNav-page"))
-                {
-                    temp = temp[(temp.IndexOf("pageNav-page") + "pageNav-page".Length)..];
-                }
-                temp = temp[(temp.IndexOf(">") + 1)..];
-                temp = temp[(temp.IndexOf(">") + 1)..];
-                temp = temp[..temp.IndexOf("<")];
-                pages = int.Parse(temp);
-            }
-
-            return pages;
+                Teams = teams,
+                NewestPostDate = lineDataHandler.NewestPostDate,
+                FetchedAt = DateTime.UtcNow,
+            };
         }
+
+        private async Task<LineDataHandler> ParsePageAsync(string url, int pageCount, string site, string? prefix, ICollection<Team> collectedTeams)
+        {
+            var lineDataHandler = new LineDataHandler();
+            var currentTeams = new List<string>();
+            foreach (var line in site.Split('\n'))
+            {
+                await HandleLine(url, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler).ConfigureAwait(false);
+            }
+            return lineDataHandler;
+        }
+
+        private Task<string> GetPageAsync(string url) => _httpClient.GetStringAsync(url);
 
         private async Task HandleLine(string url, ICollection<Team> collectedTeams, int pageCount, ICollection<string> currentTeams, string line, string? prefix, LineDataHandler lineDataHandler)
         {
@@ -337,6 +540,10 @@ lineDataHandler.PostLink = line[(line.IndexOf("data-content=\"") + 5)..];
                 temp = temp[..temp.IndexOf("\"")];
                 temp = temp.Replace("at ", "");
                 lineDataHandler.PostDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+                if (lineDataHandler.PostDate > lineDataHandler.NewestPostDate)
+                {
+                    lineDataHandler.NewestPostDate = lineDataHandler.PostDate;
+                }
                 lineDataHandler.TimerHeader = false;
             }
             else if (line.Contains("<span class=\"u-srOnly\">Reactions:</span>"))
@@ -524,16 +731,43 @@ lineDataHandler.PostLink = line[(line.IndexOf("data-content=\"") + 5)..];
         private static partial Regex HtmlRemoverGenerated();
         private readonly Regex htmlRemoverRegex = HtmlRemoverGenerated();
 
-        private async Task<string> GetTeamFromPokepasteURL(string pasteUrl)
+        private Task<string> GetTeamFromPokepasteURL(string pasteUrl) => GetPasteAsync(pasteUrl, ExtractPokepasteTeam);
+
+        private Task<string> GetTeamFromBinURL(string pasteUrl) => GetPasteAsync(pasteUrl, site => htmlRemoverRegex.Replace(site, string.Empty));
+
+        /// <summary>
+        /// Pastes hardly ever change, so each one is fetched only once. Only team texts are kept;
+        /// "" marks a paste without team. Failed requests are not stored and get retried in a later run.
+        /// </summary>
+        private async Task<string> GetPasteAsync(string pasteUrl, Func<string, string> extractText)
         {
-            var site = "";
+            var cached = _store.GetPaste(pasteUrl);
+            if (cached != null)
+            {
+                return cached;
+            }
+
+            string site;
             try
             {
-                site = await Common.HttpClient.GetStringAsync(pasteUrl).ConfigureAwait(false);
+                site = await _httpClient.GetStringAsync(pasteUrl).ConfigureAwait(false);
             }
-            catch (HttpRequestException)
-            { }
+            catch (HttpRequestException e)
+            {
+                if (e.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+                {
+                    _store.SetPaste(pasteUrl, "");
+                }
+                return "";
+            }
 
+            var text = extractText(site);
+            _store.SetPaste(pasteUrl, IsTeam(text) ? text : "");
+            return text;
+        }
+
+        private string ExtractPokepasteTeam(string site)
+        {
             var team = new StringBuilder();
             var addLines = false;
 
@@ -554,21 +788,6 @@ lineDataHandler.PostLink = line[(line.IndexOf("data-content=\"") + 5)..];
             }
 
             return htmlRemoverRegex.Replace(team.ToString(), string.Empty);
-        }
-
-        private async Task<string> GetTeamFromBinURL(string pasteUrl)
-        {
-            var site = "";
-            try
-            {
-                site = await Common.HttpClient.GetStringAsync(pasteUrl).ConfigureAwait(false);
-            }
-            catch (HttpRequestException)
-            { }
-
-            var team = htmlRemoverRegex.Replace(site, string.Empty);
-
-            return team;
         }
 
         private readonly Regex doubleRowRegex = new(@"\n\n");

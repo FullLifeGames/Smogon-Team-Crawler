@@ -11,6 +11,7 @@ namespace SmogonTeamCrawler.Core.Data
         public bool PostStarted { get; set; }
         public int PostLikes { get; set; }
         public DateTime PostDate { get; set; } = DateTime.Now;
+        public DateTime NewestPostDate { get; set; } = DateTime.MinValue;
         public string PostedBy { get; set; } = "";
         public string LastLine { get; set; } = "";
         public string PostLink { get; set; } = "";

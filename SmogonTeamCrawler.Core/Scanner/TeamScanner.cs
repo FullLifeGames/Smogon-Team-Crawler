@@ -1,14 +1,38 @@
 ﻿using SmogonTeamCrawler.Core.Data;
 using SmogonTeamCrawler.Core.Util;
+using System;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Core.Scanner
 {
     public class TeamScanner : IScanner
     {
-        private const string LINE_CLASS_IDENTIFIER = "class=\"subNodeLink subNodeLink--forum";
-        private const string SCAN_ENDPOINT = "node-stats\"";
+        /// <summary>Forum index sections whose sub-forums are crawled as regular forums, with the generation used as tier prefix.</summary>
+        public static IList<(string Section, Func<string> GenPrefix)> RegularSections { get; set; } =
+        [
+            ("Smogon Metagames", () => Common.NewestGen),
+            ("Ruins of Alph", () => Common.CurrentGen),
+            ("Gen 8 Competitive Discussion", () => Common.CurrentGen),
+        ];
+
+        /// <summary>Forum index sections whose sub-forums are crawled as Rate My Team forums.</summary>
+        public static IList<string> RmtSections { get; set; } = ["Rate My Team"];
+
+        /// <summary>Sections of the archive category (<see cref="Common.ARCHIVE_URL"/>) whose sub-forums are crawled as Rate My Team forums.</summary>
+        public static IList<string> ArchiveRmtSections { get; set; } = ["2007 - 2022 Rate My Team"];
+
+        private readonly HttpClient? _httpClient;
+
+        public TeamScanner() : this(null) { }
+
+        public TeamScanner(HttpClient? httpClient)
+        {
+            _httpClient = httpClient;
+        }
+
+        private HttpClient HttpClient => _httpClient ?? Common.HttpClient;
 
         public async Task<ScanResult> Scan()
         {
@@ -18,113 +42,39 @@ namespace SmogonTeamCrawler.Core.Scanner
                 TierToRmtLinks = new Dictionary<string, string>(),
             };
 
-            var smogonMain = await Common.HttpClient.GetStringAsync(Common.SMOGON_FORUMS_URL).ConfigureAwait(false);
-            var scanStartZero = false;
-            var scanStartOne = false;
-            var scanStartTwo = false;
-
-            var lines = smogonMain.Split('\n');
-            for (var i = 0; i < lines.Length; i++)
+            var smogonMain = await HttpClient.GetStringAsync(Common.SMOGON_FORUMS_URL).ConfigureAwait(false);
+            SmogonPages.EnsureTemplate(smogonMain, Common.SMOGON_FORUMS_URL, "forum_list");
+            foreach (var (section, genPrefix) in RegularSections)
             {
-                var line = lines[i];
-                var nextLine = i +1 < lines.Length ? lines[i + 1] : "";
-                if (scanStartZero)
-                {
-                    if (line.Contains(LINE_CLASS_IDENTIFIER))
-                    {
-                        GetAndAddURL(line, nextLine, scanResult.TierToRegularLinks, true);
-                    }
-                    else if (line.Contains(SCAN_ENDPOINT))
-                    {
-                        scanStartZero = false;
-                    }
-                }
-                else if (scanStartOne)
-                {
-                    if (line.Contains(LINE_CLASS_IDENTIFIER))
-                    {
-                        GetAndAddURL(line, nextLine, scanResult.TierToRegularLinks, false, true);
-                    }
-                    else if (line.Contains(SCAN_ENDPOINT))
-                    {
-                        scanStartOne = false;
-                    }
-                }
-                else if (scanStartTwo)
-                {
-                    if (line.Contains(LINE_CLASS_IDENTIFIER))
-                    {
-                        GetAndAddURL(line, nextLine, scanResult.TierToRmtLinks);
-                    }
-                    else if (line.Contains(SCAN_ENDPOINT))
-                    {
-                        scanStartTwo = false;
-                        break;
-                    }
-                }
-                else if (line.Contains("Smogon Metagames"))
-                {
-                    scanStartZero = true;
-                }
-                else if (line.Contains("Gen 8 Competitive Discussion"))
-                {
-                    scanStartOne = true;
-                }
-                else if (line.Contains("Ruins of Alph"))
-                {
-                    scanStartOne = true;
-                }
-                else if (line.Contains(">Rate My Team<"))
-                {
-                    scanStartTwo = true;
-                }
+                AddSubForums(smogonMain, section, genPrefix(), scanResult.TierToRegularLinks);
+            }
+            foreach (var section in RmtSections)
+            {
+                AddSubForums(smogonMain, section, "", scanResult.TierToRmtLinks);
             }
 
-            smogonMain = await Common.HttpClient.GetStringAsync(Common.ARCHIVE_URL).ConfigureAwait(false);
-            scanStartTwo = false;
-            lines = smogonMain.Split('\n');
-            for (var i = 0; i < lines.Length; i++)
+            var archive = await HttpClient.GetStringAsync(Common.ARCHIVE_URL).ConfigureAwait(false);
+            SmogonPages.EnsureTemplate(archive, Common.ARCHIVE_URL, "category_view");
+            foreach (var section in ArchiveRmtSections)
             {
-                var line = lines[i];
-                var nextLine = i + 1 < lines.Length ? lines[i + 1] : "";
-                if (scanStartTwo)
-                {
-                    if (line.Contains(LINE_CLASS_IDENTIFIER))
-                    {
-                        GetAndAddURL(line, nextLine, scanResult.TierToRmtLinks);
-                    }
-                    else if (line.Contains(SCAN_ENDPOINT))
-                    {
-                        scanStartTwo = false;
-                        break;
-                    }
-                }
-                else if (line.Contains("2020 - 2023 B101 Resources"))
-                {
-                    scanStartTwo = true;
-                }
+                AddSubForums(archive, section, "", scanResult.TierToRmtLinks);
             }
 
             return scanResult;
         }
 
-        private static void GetAndAddURL(string line, string nextLine, IDictionary<string, string> addition, bool useNewGen = false, bool useCurrentGen = false)
+        private static void AddSubForums(string html, string section, string namePrefix, IDictionary<string, string> addition)
         {
-            var urlName = nextLine[(nextLine.LastIndexOf(">") + 1)..];
-            if (useNewGen)
+            var subForums = ForumIndexParser.FindSubForums(html, section);
+            if (subForums == null)
             {
-                urlName = Common.NewestGen + urlName;
+                Console.WriteLine($"Warning: forum section '{section}' was not found; its teams are missing from this run.");
+                return;
             }
-            if (useCurrentGen)
+            foreach (var (name, url) in subForums)
             {
-                urlName = Common.CurrentGen + urlName;
+                addition.TryAdd(namePrefix + name, url);
             }
-
-            var url = line[(line.IndexOf('"') + 1)..];
-            url = url[..url.IndexOf('"')];
-            url = "https://www.smogon.com" + url;
-
-            addition.TryAdd(urlName, url);
         }
     }
 }
