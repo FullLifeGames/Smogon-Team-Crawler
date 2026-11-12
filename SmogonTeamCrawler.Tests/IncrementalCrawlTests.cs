@@ -49,6 +49,8 @@ namespace SmogonTeamCrawler.Tests
             afterPublish?.Invoke();
             _http.Requests.Clear();
             options ??= new CollectorOptions();
+            // The listing walk; SearchCrawlTests covers the search.
+            options.UseSearch = false;
             options.HttpClient = new HttpClient(_http);
             var collected = await new TeamCollector(_cache, options)
                 .Collect(new Dictionary<string, string> { [Tier] = ForumUrl }, false);
@@ -254,6 +256,79 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public async Task Pastes_AreFetchedWhileTheNextPageIsRead()
+        {
+            const string pasteUrl = "https://pokepast.es/0123456789abcdef";
+            var thread = _forum.AddThread(7)
+                .AddPage(new FakePost(71, Old.AddHours(6), "P7", pasteUrl))
+                .AddPage(new FakePost(72, Old.AddHours(7), "Q7"));
+            // The paste answers only once page 2 was requested: reading pages one after another would wait forever.
+            var page2Requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _http.OnRequest = url => { if (url == thread.Url + "page-2") page2Requested.TrySetResult(); };
+            _http.Hold(pasteUrl, page2Requested.Task);
+
+            var teams = await Crawl().WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.That(Tags(teams), Does.Contain("P7").And.Contain("Q7"));
+            var state = JsonConvert.DeserializeObject<ThreadCrawlState>(_cache.GetString("stc:v3:thread:7")!)!;
+            Assert.That(state.Pages[1].Teams, Has.Count.EqualTo(1), "page 1 is stored with the team of its paste");
+        }
+
+        [Test]
+        public async Task PasteOnTwoPages_IsFetchedOnce_WhileStillOnItsWay()
+        {
+            const string pasteUrl = "https://pokepast.es/fedcba9876543210";
+            var thread = _forum.AddThread(8)
+                .AddPage(new FakePost(81, Old.AddHours(6), "R8", pasteUrl))
+                .AddPage(new FakePost(82, Old.AddHours(7), "R8", pasteUrl));
+            var page2Requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _http.OnRequest = url => { if (url == thread.Url + "page-2") page2Requested.TrySetResult(); };
+            // Page 2 is parsed while the first request for the paste is still open.
+            _http.Hold(pasteUrl, page2Requested.Task.ContinueWith(_ => Task.Delay(300)).Unwrap());
+
+            var teams = await Crawl().WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.That(_http.Requests.Count(url => url == pasteUrl), Is.EqualTo(1));
+            Assert.That(Tags(teams).Count(tag => tag == "R8"), Is.EqualTo(2));
+        }
+
+        [Test]
+        public async Task ShowdownTeamLink_IsCollected_AndFetchedOnlyOnce()
+        {
+            const string teamLink = "https://psim.us/t/2075402";
+            var apiUrl = ShowdownTeams.ApiUrl("2075402", null);
+            var thread = _forum.AddThread(10).AddPage(new FakePost(101, Old.AddHours(6), PasteUrl: teamLink));
+            var answer = "]" + JsonConvert.SerializeObject(new { teamid = "2075402", team = ShowdownTeamsTests.PackedTeam });
+            void Serve()
+            {
+                _http.Html(apiUrl, answer);
+                _http.Html(ShowdownNames.DataUrls[2], """exports.BattleItems = {boosterenergy:{name:"Booster Energy"}};""");
+            }
+
+            var teams = await Crawl(afterPublish: Serve);
+
+            var team = teams.Single(t => t.URL == thread.Url + "page-1#post-101");
+            Assert.That(team.TeamString, Does.StartWith("Roaring Moon @ Booster Energy\n"));
+            Assert.That(_http.Requests, Does.Contain(apiUrl).And.Contain(ShowdownNames.DataUrls[0]), "the data files of unknown names answer 404 and only cost nicer names");
+            Assert.That(_http.Requests, Has.None.Contains("psim.us"));
+
+            thread.Pages[0].Add(new FakePost(102, Old.AddDays(10)));
+            await Crawl(afterPublish: Serve);
+
+            Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl, thread.Url }));
+        }
+
+        [Test]
+        public async Task PrivateShowdownTeam_IsNoTeam()
+        {
+            var thread = _forum.AddThread(10).AddPage(new FakePost(101, Old.AddHours(6), PasteUrl: "https://psim.us/t/2075556"));
+
+            var teams = await Crawl(afterPublish: () => _http.Html(ShowdownTeams.ApiUrl("2075556", null), """]{"team":null}"""));
+
+            Assert.That(teams.Where(t => t.URL!.StartsWith(thread.Url)), Is.Empty);
+        }
+
+        [Test]
         public async Task MovedThread_IsOnlyCollectedInItsNewForum()
         {
             const string otherForumUrl = "https://www.smogon.com/forums/forums/gen-9-ou-archive.841/";
@@ -263,7 +338,7 @@ namespace SmogonTeamCrawler.Tests
             var forums = new Dictionary<string, string> { [Tier] = ForumUrl, ["gen9Gen 9 OU Archive"] = otherForumUrl };
 
             _forum.Publish(_http);
-            var options = new CollectorOptions { HttpClient = new HttpClient(_http) };
+            var options = new CollectorOptions { HttpClient = new HttpClient(_http), UseSearch = false };
             await new TeamCollector(_cache, options).Collect(forums, false);
 
             _forum.Threads.Remove(_c);
@@ -284,7 +359,7 @@ namespace SmogonTeamCrawler.Tests
             _forum.AddThread(8, prefix: "SV UU").AddPage(new FakePost(81, Old, "UU1"));
             _forum.Publish(_http);
 
-            var collected = await new TeamCollector(_cache, new CollectorOptions { HttpClient = new HttpClient(_http) })
+            var collected = await new TeamCollector(_cache, new CollectorOptions { HttpClient = new HttpClient(_http), UseSearch = false })
                 .Collect(new Dictionary<string, string> { ["SV OU Teams"] = ForumUrl }, true);
 
             Assert.That(Tags(collected["SV OU"]), Is.EqualTo(new[] { "OU1" }));

@@ -21,8 +21,13 @@ namespace SmogonTeamCrawler.Core.Data
     /// <summary>What the crawler remembers about a forum between runs.</summary>
     public class ForumCrawlState
     {
-        /// <summary>Newest latest-post timestamp seen in the forum listing during the last run.</summary>
+        /// <summary>
+        /// Newest latest-post timestamp seen in the forum listing during the last walk; after a first run by search, when
+        /// that search started. A listing walk stops at threads without newer posts.
+        /// </summary>
         public long Watermark { get; set; }
+        /// <summary>The forum's node ID, which the search filters by; 0 if not known yet.</summary>
+        public long NodeId { get; set; }
         /// <summary>True once the whole listing was walked; afterwards only the changed part is read.</summary>
         public bool Complete { get; set; }
         public DateTime LastCrawl { get; set; }

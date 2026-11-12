@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Text;
 
 namespace SmogonTeamCrawler.Tests.Fakes
@@ -33,12 +35,16 @@ namespace SmogonTeamCrawler.Tests.Fakes
     /// <summary>A forum with threads that renders listing and thread pages the way Smogon (XenForo 2.3) does.</summary>
     internal class FakeForum
     {
-        public FakeForum(string url)
+        /// <param name="nodeId">The node ID, for a URL without one (".../forums/gen1/").</param>
+        public FakeForum(string url, long? nodeId = null)
         {
             Url = url;
+            var dot = url.TrimEnd('/').LastIndexOf('.');
+            NodeId = nodeId ?? (long.TryParse(url.TrimEnd('/')[(dot + 1)..], out var id) ? id : throw new ArgumentException("No node ID in " + url));
         }
 
         public string Url { get; }
+        public long NodeId { get; }
         public int ThreadsPerPage { get; set; } = 40;
         public List<FakeThread> Threads { get; } = new();
 
@@ -60,22 +66,175 @@ namespace SmogonTeamCrawler.Tests.Fakes
             {
                 var items = (page == 1 ? stickies : new List<FakeThread>())
                     .Concat(normal.Skip((page - 1) * ThreadsPerPage).Take(ThreadsPerPage));
-                http.Html(SmogonHtml.PageUrl(Url, page), SmogonHtml.Listing(path, page, pages, items));
+                http.Html(SmogonHtml.PageUrl(Url, page), SmogonHtml.Listing(path, page, pages, items, NodeId));
             }
 
             foreach (var thread in Threads)
             {
                 for (var page = 1; page <= thread.Pages.Count; page++)
                 {
-                    http.Html(SmogonHtml.PageUrl(thread.Url, page), SmogonHtml.ThreadPage(thread, page));
-                    foreach (var post in thread.Pages[page - 1].Where(p => p.PasteUrl != null))
+                    var html = SmogonHtml.ThreadPage(thread, page);
+                    http.Html(SmogonHtml.PageUrl(thread.Url, page), html);
+                    foreach (var post in thread.Pages[page - 1])
                     {
-                        http.Html(post.PasteUrl!, SmogonHtml.Pokepaste(post.TeamTag ?? "paste"));
+                        // A post link leads to the page of the post.
+                        http.Html(thread.Url + "post-" + post.Id, html);
+                        if (post.PasteUrl != null)
+                        {
+                            http.Html(post.PasteUrl, SmogonHtml.Pokepaste(post.TeamTag ?? "paste"));
+                        }
                     }
                 }
             }
         }
     }
+
+    /// <summary>
+    /// Smogon's search over fake forums: a post is a hit if its text (paste link, team or "Post text") matches the query
+    /// (<see cref="FakeQuery"/>) and it is in one of the forums asked for (all without). Dates are compared in UTC.
+    /// Results are newest first, cut off after <see cref="MaxResults"/>.
+    /// </summary>
+    internal class FakeSearch
+    {
+        private readonly FakeForum[] _forums;
+
+        public FakeSearch(params FakeForum[] forums)
+        {
+            _forums = forums;
+        }
+
+        public int ResultsPerPage { get; set; } = 10;
+        public int MaxResults { get; set; } = 200;
+        /// <summary>Served for every search instead of results.</summary>
+        public string? Unavailable { get; set; }
+        /// <summary>Posts the search does not find.</summary>
+        public HashSet<long> NotIndexed { get; } = new();
+        /// <summary>Positions shown instead of the real one, as after posts were deleted or restored.</summary>
+        public Dictionary<long, int> ShownPositions { get; } = new();
+
+        public void Publish(FakeHttpHandler http) => http.Prefix("https://www.smogon.com/forums/search/", Answer);
+
+        private HttpResponseMessage Answer(string url)
+        {
+            if (Unavailable != null)
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Unavailable) };
+            }
+            var query = url[(url.IndexOf('?') + 1)..].Split('&')
+                .Select(part => part.Split('=', 2))
+                .ToDictionary(kv => Uri.UnescapeDataString(kv[0]), kv => kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : "");
+            var keywords = query.GetValueOrDefault("q") ?? "";
+            var newerThan = query.TryGetValue("c[newer_than]", out var since) ? DateTime.Parse(since, CultureInfo.InvariantCulture) : DateTime.MinValue;
+            var olderThan = query.TryGetValue("c[older_than]", out var before) ? DateTime.Parse(before, CultureInfo.InvariantCulture) : DateTime.MaxValue;
+            var page = query.TryGetValue("page", out var pageText) ? int.Parse(pageText) : 1;
+            var nodes = query.Where(kv => kv.Key.StartsWith("c[nodes][")).Select(kv => long.Parse(kv.Value)).ToHashSet();
+
+            var matches = FakeQuery.Parse(keywords);
+            var results = (
+                from forum in _forums
+                where nodes.Count == 0 || nodes.Contains(forum.NodeId)
+                from thread in forum.Threads
+                from pageIndex in Enumerable.Range(0, thread.Pages.Count)
+                from post in thread.Pages[pageIndex].Select((post, index) => (post, index))
+                let text = post.post.PasteUrl ?? (post.post.TeamTag != null ? SmogonHtml.TeamText(post.post.TeamTag, "") : "Post text")
+                where matches(text) && post.post.Date >= newerThan && post.post.Date < olderThan && !NotIndexed.Contains(post.post.Id)
+                orderby post.post.Date descending
+                select new FakeSearchResult(forum, thread, post.post,
+                    ShownPositions.GetValueOrDefault(post.post.Id, pageIndex * 25 + post.index + 1),
+                    pageIndex == 0 && post.index == 0)
+            ).Take(MaxResults).ToList();
+
+            var shown = results.Skip((page - 1) * ResultsPerPage).Take(ResultsPerPage);
+            var next = page * ResultsPerPage < results.Count
+                ? $"/forums/search/1/?page={page + 1}&amp;q={Uri.EscapeDataString(keywords)}"
+                    + (newerThan != DateTime.MinValue ? $"&amp;c[newer_than]={newerThan:yyyy-MM-dd}" : "")
+                    + (olderThan != DateTime.MaxValue ? $"&amp;c[older_than]={olderThan:yyyy-MM-dd}" : "")
+                    + string.Concat(nodes.Select((node, index) => $"&amp;c[nodes][{index}]={node}")) + "&amp;o=date"
+                : null;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(SmogonHtml.SearchResults(shown, next)) };
+        }
+    }
+
+    /// <summary>
+    /// Smogon's query syntax, matched against a text: words (contained, ignoring case) are all required, "|" is or,
+    /// quotes make a phrase, parentheses group.
+    /// </summary>
+    internal static class FakeQuery
+    {
+        public static Func<string, bool> Parse(string query)
+        {
+            var tokens = new List<string>();
+            for (var i = 0; i < query.Length;)
+            {
+                var c = query[i];
+                if (char.IsWhiteSpace(c))
+                {
+                    i++;
+                }
+                else if (c is '(' or ')' or '|')
+                {
+                    tokens.Add(c.ToString());
+                    i++;
+                }
+                else if (c == '"')
+                {
+                    var end = query.IndexOf('"', i + 1);
+                    tokens.Add(query[i..(end + 1)]);
+                    i = end + 1;
+                }
+                else
+                {
+                    var end = i;
+                    while (end < query.Length && !char.IsWhiteSpace(query[end]) && query[end] is not ('(' or ')' or '|' or '"'))
+                    {
+                        end++;
+                    }
+                    tokens.Add(query[i..end]);
+                    i = end;
+                }
+            }
+            var position = 0;
+            var match = Or(tokens, ref position);
+            if (position != tokens.Count)
+            {
+                throw new FormatException("Unbalanced query: " + query);
+            }
+            return match;
+        }
+
+        private static Func<string, bool> Or(List<string> tokens, ref int position)
+        {
+            var alternatives = new List<Func<string, bool>> { And(tokens, ref position) };
+            while (position < tokens.Count && tokens[position] == "|")
+            {
+                position++;
+                alternatives.Add(And(tokens, ref position));
+            }
+            return text => alternatives.Any(alternative => alternative(text));
+        }
+
+        private static Func<string, bool> And(List<string> tokens, ref int position)
+        {
+            var required = new List<Func<string, bool>>();
+            while (position < tokens.Count && tokens[position] is not ("|" or ")"))
+            {
+                var token = tokens[position++];
+                if (token == "(")
+                {
+                    required.Add(Or(tokens, ref position));
+                    position++; // ")"
+                }
+                else
+                {
+                    var words = token.Trim('"');
+                    required.Add(text => text.Contains(words, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+            return text => required.All(part => part(text));
+        }
+    }
+
+    internal record FakeSearchResult(FakeForum Forum, FakeThread Thread, FakePost Post, int Position, bool IsThread);
 
     internal static class SmogonHtml
     {
@@ -100,7 +259,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
         private static string Time(string cssClass, DateTime date) =>
             $"<time  class=\"{cssClass}u-dt\" dir=\"auto\" datetime=\"{date:yyyy-MM-ddTHH:mm:ss}Z\" data-timestamp=\"{Timestamp(date)}\" data-date=\"{date.ToString("MMM d, yyyy", English)}\" data-time=\"{date.ToString("h:mm tt", English)}\" data-short=\"1d\" title=\"{DisplayDate(date)}\">{DisplayDate(date)}</time>";
 
-        private static string PageNav(string path, int pages)
+        private static string PageNav(string path, int pages, int current = 1)
         {
             if (pages <= 1)
             {
@@ -111,17 +270,17 @@ namespace SmogonTeamCrawler.Tests.Fakes
             nav.Append("<div class=\"pageNav  \">\n\t<ul class=\"pageNav-main\">\n");
             for (var page = 1; page <= pages; page++)
             {
-                var css = page == 1 ? "pageNav-page pageNav-page--current " : "pageNav-page ";
+                var css = page == current ? "pageNav-page pageNav-page--current " : "pageNav-page ";
                 nav.Append($"\t\t<li class=\"{css}\"><a href=\"{PageUrl(path, page)}\">{page}</a></li>\n");
             }
             nav.Append("\t</ul>\n</div>\n</nav></div></div>\n");
             return nav.ToString();
         }
 
-        public static string Listing(string forumPath, int page, int pages, IEnumerable<FakeThread> threads)
+        public static string Listing(string forumPath, int page, int pages, IEnumerable<FakeThread> threads, long nodeId)
         {
             var html = new StringBuilder();
-            html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"forum_view\" data-logged-in=\"false\">\n<body>\n");
+            html.Append($"<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"forum_view\"\n\tdata-container-key=\"node-{nodeId}\"\n\tdata-content-key=\"forum-{nodeId}\" data-logged-in=\"false\">\n<body>\n");
             html.Append(PageNav(forumPath, pages));
             html.Append("<div class=\"structItemContainer\">\n");
             foreach (var thread in threads)
@@ -163,7 +322,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
             var threadPath = new Uri(thread.Url).AbsolutePath;
             var html = new StringBuilder();
             html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"thread_view\" data-logged-in=\"false\">\n<body>\n");
-            html.Append(PageNav(threadPath, thread.Pages.Count));
+            html.Append(PageNav(threadPath, thread.Pages.Count, page));
             html.Append("<div class=\"block-body js-replyNewMessageContainer\">\n");
             foreach (var post in thread.Pages[page - 1])
             {
@@ -195,6 +354,39 @@ namespace SmogonTeamCrawler.Tests.Fakes
             return html.ToString();
         }
 
+        /// <summary>A page of search results as Smogon renders them; thread results are the first post of their thread.</summary>
+        public static string SearchResults(IEnumerable<FakeSearchResult> results, string? nextHref)
+        {
+            var html = new StringBuilder();
+            html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"search_results\" data-logged-in=\"false\">\n<body>\n");
+            html.Append("<div class=\"block-container\">\n\t<ol class=\"block-body\">\n");
+            foreach (var result in results)
+            {
+                var threadPath = new Uri(result.Thread.Url).AbsolutePath;
+                var link = result.IsThread ? threadPath : threadPath + "post-" + result.Post.Id;
+                var label = result.Thread.Prefix.Length > 0
+                    ? $"<span class=\"label label--blue\" dir=\"auto\">{result.Thread.Prefix}</span><span class=\"label-append\">&nbsp;</span>"
+                    : "";
+                html.Append($"\t\t<li class=\"block-row block-row--separated  js-inlineModContainer\" data-author=\"{result.Post.Author}\">\n");
+                html.Append("\t<div class=\"contentRow \">\n\t\t<div class=\"contentRow-main\">\n");
+                html.Append($"\t\t\t<h3 class=\"contentRow-title\">\n\t\t\t\t<a href=\"{link}\">{label}Thread {result.Thread.Id}</a>\n\t\t\t</h3>\n");
+                html.Append($"\t\t\t<div class=\"contentRow-snippet\">{result.Post.PasteUrl ?? "Post text"}</div>\n");
+                html.Append("\t\t\t<div class=\"contentRow-minor contentRow-minor--hideLinks\">\n\t\t\t\t<ul class=\"listInline listInline--bullet\">\n");
+                html.Append($"\t\t\t\t\t<li><a href=\"/forums/members/tester.1/\" class=\"username \" dir=\"auto\" data-user-id=\"1\">{result.Post.Author}</a></li>\n");
+                html.Append(result.IsThread ? "\t\t\t\t\t<li>Thread</li>\n" : $"\t\t\t\t\t<li>Post #{result.Position.ToString("N0", English)}</li>\n");
+                html.Append($"\t\t\t\t\t<li>{Time("", result.Post.Date)}</li>\n");
+                html.Append($"\t\t\t\t\t<li>Forum: <a href=\"{new Uri(result.Forum.Url).AbsolutePath}\">Forum</a></li>\n");
+                html.Append("\t\t\t\t</ul>\n\t\t\t</div>\n\t\t</div>\n\t</div>\n</li>\n");
+            }
+            html.Append("\t</ol>\n</div>\n");
+            if (nextHref != null)
+            {
+                html.Append($"<nav class=\"pageNavWrapper\"><div class=\"pageNav\"><a href=\"{nextHref}\" class=\"pageNav-jump pageNav-jump--next\">Next</a></div></nav>\n");
+            }
+            html.Append("</body>\n</html>\n");
+            return html.ToString();
+        }
+
         public static string Pokepaste(string tag)
         {
             var html = new StringBuilder("<html><body>\n<article>\n");
@@ -206,7 +398,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
             return html.ToString();
         }
 
-        /// <summary>A six Pokémon team in Showdown format; the first mon is named after the tag.</summary>
+        /// <summary>A six Pokémon team in Showdown format, with physical and special natures; the first mon is named after the tag.</summary>
         public static string TeamText(string tag, string lineEnd)
         {
             var team = new StringBuilder();
@@ -215,7 +407,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 team.Append($"Mon{tag}x{i} @ Leftovers{lineEnd}\n");
                 team.Append($"Ability: Pressure{lineEnd}\n");
                 team.Append($"EVs: 252 HP / 252 Def / 4 SpD{lineEnd}\n");
-                team.Append($"Bold Nature{lineEnd}\n");
+                team.Append(i % 2 == 0 ? $"Impish Nature{lineEnd}\n" : $"Bold Nature{lineEnd}\n");
                 team.Append($"- Protect{lineEnd}\n- Toxic{lineEnd}\n- Roost{lineEnd}\n- Scald{lineEnd}\n");
                 team.Append($"{lineEnd}\n");
             }

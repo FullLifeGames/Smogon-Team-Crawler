@@ -70,6 +70,36 @@ namespace SmogonTeamCrawler.Core.Util
         [GeneratedRegex("class=\"pageNav-page[^\"]*\"[^>]*>\\s*<a[^>]*>\\s*(\\d+)\\s*</a>")]
         private static partial Regex PageNavPageRegex();
 
+        [GeneratedRegex("class=\"pageNav-page pageNav-page--current[^\"]*\"[^>]*>\\s*<a[^>]*>\\s*(\\d+)\\s*</a>")]
+        private static partial Regex CurrentPageRegex();
+
+        /// <summary>The page shown, from the page navigation (a post link like ".../post-123" lands on the page of the post).</summary>
+        public static int GetCurrentPage(string html)
+        {
+            var current = CurrentPageRegex().Match(html);
+            return current.Success && int.TryParse(current.Groups[1].Value, out var page) ? page : 1;
+        }
+
+        [GeneratedRegex("\\.(\\d+)/?$")]
+        private static partial Regex NodeIdRegex();
+
+        /// <summary>The node ID of a forum URL (".../forums/overused.726/" is 726), null if there is none (".../forums/gen1/").</summary>
+        public static long? GetForumId(string forumUrl)
+        {
+            var id = NodeIdRegex().Match(forumUrl);
+            return id.Success ? long.Parse(id.Groups[1].Value) : null;
+        }
+
+        [GeneratedRegex("data-container-key=\"node-(\\d+)\"")]
+        private static partial Regex ContainerKeyRegex();
+
+        /// <summary>The node ID of the forum a listing page belongs to, from its html tag; null if it has none.</summary>
+        public static long? GetNodeId(string listingHtml)
+        {
+            var id = ContainerKeyRegex().Match(listingHtml);
+            return id.Success ? long.Parse(id.Groups[1].Value) : null;
+        }
+
         public static int GetNumberOfPages(string html)
         {
             var pages = 1;

@@ -132,7 +132,7 @@ namespace SmogonTeamCrawler.Tests
                 .AddPage(new FakePost(2, new System.DateTime(2026, 11, 8, 13, 33, 0)))
                 .AddPage(new FakePost(3, new System.DateTime(2026, 11, 8, 13, 34, 0)))
                 .AddPage(new FakePost(4, new System.DateTime(2026, 11, 8, 13, 35, 0)));
-            var html = SmogonHtml.Listing("/forums/forums/sv-ou-teams.748/", 1, 45, forum.Threads)
+            var html = SmogonHtml.Listing("/forums/forums/sv-ou-teams.748/", 1, 45, forum.Threads, forum.NodeId)
                 .Replace("/forums/threads/thread-10.10/", "/forums/threads/10/");
 
             var items = ForumListingParser.Parse(html);

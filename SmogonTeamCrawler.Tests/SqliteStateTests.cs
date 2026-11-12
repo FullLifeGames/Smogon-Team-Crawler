@@ -62,7 +62,7 @@ namespace SmogonTeamCrawler.Tests
             {
                 http.Requests.Clear();
                 using var cache = new SqliteCache(new SqliteCacheOptions { MemoryOnly = false, CachePath = cachePath });
-                var collector = new TeamCollector(cache, new CollectorOptions { HttpClient = new HttpClient(http) });
+                var collector = new TeamCollector(cache, new CollectorOptions { HttpClient = new HttpClient(http), UseSearch = false });
                 var collected = await collector.Collect(forums, false);
                 return collected["gen9OverUsed"].Count;
             }

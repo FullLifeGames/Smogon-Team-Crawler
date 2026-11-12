@@ -36,6 +36,7 @@ namespace SmogonTeamCrawler.Core.Util
     /// <summary>
     /// Sends at most one request per host at a time, waits <see cref="PoliteHttpOptions.MinDelay"/> between them,
     /// honours Retry-After, retries only transient failures and identifies itself with a User-Agent.
+    /// By default the requests go through a headless browser (<see cref="PlaywrightHttpMessageHandler"/>).
     /// </summary>
     public class PoliteHttpMessageHandler : DelegatingHandler
     {
@@ -66,11 +67,11 @@ namespace SmogonTeamCrawler.Core.Util
         /// </summary>
         public static HttpClient CreateClient(PoliteHttpMessageHandler handler) => new(handler) { Timeout = TimeSpan.FromMinutes(30) };
 
-        private static HttpMessageHandler CreateDefaultInnerHandler() => new SocketsHttpHandler
-        {
-            AutomaticDecompression = DecompressionMethods.All,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-        };
+        /// <summary>
+        /// Requests go through a headless browser (see <see cref="PlaywrightHttpMessageHandler"/>).
+        /// Pass a <see cref="SocketsHttpHandler"/> as inner handler for plain HTTP requests.
+        /// </summary>
+        private static HttpMessageHandler CreateDefaultInnerHandler() => new PlaywrightHttpMessageHandler();
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -134,7 +135,7 @@ namespace SmogonTeamCrawler.Core.Util
                     error!.Throw();
                 }
 
-                Console.WriteLine($"{(response != null ? "HTTP " + (int)response.StatusCode : error!.SourceException.GetType().Name)} for {request.RequestUri}, retry {attempt + 1}/{_options.MaxRetries} in {delay.TotalSeconds:0}s");
+                Console.WriteLine($"{(response != null ? "HTTP " + (int)response.StatusCode : error!.SourceException.GetType().Name + " (" + error.SourceException.Message + ")")} for {request.RequestUri}, retry {attempt + 1}/{_options.MaxRetries} in {delay.TotalSeconds:0}s");
                 response?.Dispose();
 
                 // Every other request to this host waits as well.

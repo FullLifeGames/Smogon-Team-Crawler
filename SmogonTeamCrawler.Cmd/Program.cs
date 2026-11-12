@@ -5,24 +5,33 @@ using SmogonTeamCrawler.Core.Util;
 using System.Globalization;
 
 const string Usage = """
-    Usage: SmogonTeamCrawler.Cmd [--full] [--delay <seconds>] [--recent-days <days>]
+    Usage: SmogonTeamCrawler.Cmd [--full] [--no-search] [--delay <seconds>] [--recent-days <days>] [--headed]
 
       --full                Ignore the stored state and read every listing and thread page again.
+      --no-search           Walk the forum listings instead of finding team posts through Smogon's search.
       --delay <seconds>     Pause between two requests to the same host (default 2).
-      --recent-days <days>  When a thread has new posts, also re-read its pages with posts younger
-                            than this, to refresh their likes (default 7, 0 turns it off).
+      --recent-days <days>  Re-read pages with teams younger than this, to refresh their likes
+                            (default 7, 0 turns it off).
+      --headed              Show the browser window the pages are loaded in.
 
-    The crawl state is kept in SmogonDump.db. After the first run, only new activity is read.
+    Team posts are found through Smogon's search, and only their pages are read: on the first run all
+    posts of a forum, later the posts since the last run. RBY, GSC and old-gen forums are walked.
+    The crawl state is kept in SmogonDump.db.
+    Pages are loaded with Chromium (Playwright), which is downloaded on the first run.
     """;
 
 var collectorOptions = new CollectorOptions();
 var httpOptions = new PoliteHttpOptions();
+var browserOptions = new PlaywrightHttpOptions();
 for (var i = 0; i < args.Length; i++)
 {
     switch (args[i])
     {
         case "--full":
             collectorOptions.FullRefresh = true;
+            break;
+        case "--no-search":
+            collectorOptions.UseSearch = false;
             break;
         case "--delay" when i + 1 < args.Length && double.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds >= 0:
             httpOptions.MinDelay = TimeSpan.FromSeconds(seconds);
@@ -32,6 +41,9 @@ for (var i = 0; i < args.Length; i++)
             collectorOptions.RecentPageRefreshWindow = TimeSpan.FromDays(days);
             i++;
             break;
+        case "--headed":
+            browserOptions.Headless = false;
+            break;
         default:
             Console.Error.WriteLine($"Unknown or incomplete argument: {args[i]}");
             Console.Error.WriteLine(Usage);
@@ -39,12 +51,16 @@ for (var i = 0; i < args.Length; i++)
     }
 }
 
-var httpHandler = new PoliteHttpMessageHandler(httpOptions);
+var browser = new PlaywrightHttpMessageHandler(browserOptions);
+var httpHandler = new PoliteHttpMessageHandler(httpOptions, browser);
 Common.HttpClient = PoliteHttpMessageHandler.CreateClient(httpHandler);
 collectorOptions.HttpClient = Common.HttpClient;
 
 try
 {
+    Console.WriteLine("Starting browser...");
+    await browser.StartAsync().ConfigureAwait(false);
+
     // Configure memory optimization for Linux environments
     var folderPath = "Teams/";
     Directory.CreateDirectory(folderPath);
@@ -155,4 +171,6 @@ catch (Exception e)
 finally
 {
     Console.WriteLine(httpHandler.Statistics);
+    // Closes the browser
+    Common.HttpClient.Dispose();
 }
