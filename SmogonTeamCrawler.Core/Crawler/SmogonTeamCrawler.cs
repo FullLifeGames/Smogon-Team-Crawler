@@ -10,17 +10,25 @@ namespace SmogonTeamCrawler.Core.Crawler
     {
         public SmogonTeamCrawler() : this(null) { }
 
-        private readonly IDistributedCache? _cache;
-        public SmogonTeamCrawler(IDistributedCache? cache)
+        /// <param name="cache">
+        /// Persistent cache for the incremental state. Without one, every run reads everything again.
+        /// </param>
+        public SmogonTeamCrawler(IDistributedCache? cache) : this(cache, null) { }
+
+        public SmogonTeamCrawler(IDistributedCache? cache, CollectorOptions? options)
         {
-            _cache = cache;
+            _collector = new TeamCollector(cache, options);
+            _scanner = new TeamScanner(options?.HttpClient);
         }
 
-        public override ICollector Collector => new TeamCollector(_cache);
+        private readonly ICollector _collector;
+        private readonly IScanner _scanner;
+
+        public override ICollector Collector => _collector;
 
         public override IFormatter Formatter => new TeamFormatter();
 
-        public override IScanner Scanner => new TeamScanner();
+        public override IScanner Scanner => _scanner;
 
         public override ITransformer Transformer => new TeamTransformer();
     }
