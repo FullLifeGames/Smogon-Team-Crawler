@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -11,8 +12,26 @@ namespace SmogonTeamCrawler.Core.Util
 {
     public class PoliteHttpOptions
     {
-        /// <summary>Minimum pause between two requests to the same host.</summary>
+        /// <summary>Minimum pause between two requests to the same host; paste sites get <see cref="PasteDelay"/>.</summary>
         public TimeSpan MinDelay { get; set; } = TimeSpan.FromSeconds(2);
+
+        /// <summary>
+        /// Minimum pause between two requests to a paste site (<see cref="PasteHosts"/>). A paste is a small page, and a first
+        /// run fetches thousands of them: at <see cref="MinDelay"/>, they take most of its time.
+        /// </summary>
+        public TimeSpan PasteDelay { get; set; } = TimeSpan.FromSeconds(0.5);
+
+        /// <summary>Hosts (and their subdomains) that get <see cref="PasteDelay"/>: the paste sites and Showdown's team storage.</summary>
+        public ISet<string> PasteHosts { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "pokepast.es", "pastebin.com", "hastebin.com", "teams.pokemonshowdown.com",
+        };
+
+        /// <summary>The pause after a request to <paramref name="host"/>.</summary>
+        public TimeSpan DelayFor(string host) =>
+            PasteHosts.Any(paste => host.Equals(paste, StringComparison.OrdinalIgnoreCase) || host.EndsWith("." + paste, StringComparison.OrdinalIgnoreCase))
+                ? PasteDelay
+                : MinDelay;
 
         /// <summary>How often a request is retried after a timeout, a network error or a 408/429/5xx answer.</summary>
         public int MaxRetries { get; set; } = 4;
@@ -34,7 +53,8 @@ namespace SmogonTeamCrawler.Core.Util
     }
 
     /// <summary>
-    /// Sends at most one request per host at a time, waits <see cref="PoliteHttpOptions.MinDelay"/> between them,
+    /// Sends at most one request per host at a time, waits <see cref="PoliteHttpOptions.MinDelay"/> between them
+    /// (<see cref="PoliteHttpOptions.PasteDelay"/> on paste sites),
     /// honours Retry-After, retries only transient failures and identifies itself with a User-Agent.
     /// By default the requests go through a headless browser (<see cref="PlaywrightHttpMessageHandler"/>).
     /// </summary>
@@ -82,6 +102,7 @@ namespace SmogonTeamCrawler.Core.Util
 
             var host = request.RequestUri?.Host ?? "";
             var slot = _slots.GetOrAdd(host, _ => new HostSlot());
+            var pause = _options.DelayFor(host);
 
             for (var attempt = 0; ; attempt++)
             {
@@ -113,7 +134,7 @@ namespace SmogonTeamCrawler.Core.Util
                         // Timeout of this attempt
                         error = ExceptionDispatchInfo.Capture(e);
                     }
-                    slot.NextAllowed = DateTimeOffset.UtcNow + _options.MinDelay;
+                    slot.NextAllowed = DateTimeOffset.UtcNow + pause;
                 }
                 finally
                 {

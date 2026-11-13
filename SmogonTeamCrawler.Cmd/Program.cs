@@ -5,11 +5,14 @@ using SmogonTeamCrawler.Core.Util;
 using System.Globalization;
 
 const string Usage = """
-    Usage: SmogonTeamCrawler.Cmd [--full] [--no-search] [--delay <seconds>] [--recent-days <days>] [--headed]
+    Usage: SmogonTeamCrawler.Cmd [--full] [--no-search] [--delay <seconds>] [--paste-delay <seconds>] [--recent-days <days>] [--headed]
 
       --full                Ignore the stored state and read every listing and thread page again.
       --no-search           Walk the forum listings instead of finding team posts through Smogon's search.
-      --delay <seconds>     Pause between two requests to the same host (default 2).
+      --delay <seconds>     Pause between two requests to Smogon or another host (default 2).
+      --paste-delay <seconds>
+                            Pause between two requests to a paste site: pokepast.es, pastebin.com,
+                            hastebin.com, teams.pokemonshowdown.com (default 0.5).
       --recent-days <days>  Re-read pages with teams younger than this, to refresh their likes
                             (default 7, 0 turns it off).
       --headed              Show the browser window the pages are loaded in.
@@ -35,6 +38,10 @@ for (var i = 0; i < args.Length; i++)
             break;
         case "--delay" when i + 1 < args.Length && double.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds >= 0:
             httpOptions.MinDelay = TimeSpan.FromSeconds(seconds);
+            i++;
+            break;
+        case "--paste-delay" when i + 1 < args.Length && double.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var pasteSeconds) && pasteSeconds >= 0:
+            httpOptions.PasteDelay = TimeSpan.FromSeconds(pasteSeconds);
             i++;
             break;
         case "--recent-days" when i + 1 < args.Length && int.TryParse(args[i + 1], out var days) && days >= 0:

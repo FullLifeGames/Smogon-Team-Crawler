@@ -77,6 +77,35 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public async Task RequestsToAPasteSite_AreSpacedByPasteDelay()
+        {
+            var inner = new ScriptedHandler().Then(HttpStatusCode.OK);
+            var (client, _) = Create(inner, new PoliteHttpOptions { MinDelay = TimeSpan.FromSeconds(1), PasteDelay = TimeSpan.FromMilliseconds(100) });
+
+            await Task.WhenAll(Enumerable.Range(0, 3).Select(i => client.GetAsync("https://pokepast.es/" + i)));
+
+            var times = inner.Calls.Select(c => c.At).OrderBy(t => t).ToList();
+            Assert.That(times[1] - times[0], Is.GreaterThanOrEqualTo(TimeSpan.FromMilliseconds(80)));
+            Assert.That(times[2] - times[1], Is.GreaterThanOrEqualTo(TimeSpan.FromMilliseconds(80)));
+            Assert.That(times[2] - times[0], Is.LessThan(TimeSpan.FromMilliseconds(900)));
+        }
+
+        [Test]
+        public void PasteDelay_IsForPasteSitesAndTheirSubdomains()
+        {
+            var options = new PoliteHttpOptions();
+
+            foreach (var host in new[] { "pokepast.es", "www.pokepast.es", "pastebin.com", "hastebin.com", "teams.pokemonshowdown.com" })
+            {
+                Assert.That(options.DelayFor(host), Is.EqualTo(TimeSpan.FromSeconds(0.5)), host);
+            }
+            foreach (var host in new[] { "www.smogon.com", "play.pokemonshowdown.com", "notpokepast.es" })
+            {
+                Assert.That(options.DelayFor(host), Is.EqualTo(TimeSpan.FromSeconds(2)), host);
+            }
+        }
+
+        [Test]
         public async Task TooManyRequests_IsRetriedAfterRetryAfter()
         {
             var inner = new ScriptedHandler().Then(HttpStatusCode.TooManyRequests, TimeSpan.FromSeconds(1)).Then(HttpStatusCode.OK);

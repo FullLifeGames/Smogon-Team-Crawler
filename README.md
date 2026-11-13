@@ -11,7 +11,7 @@ A more detailed description: https://www.smogon.com/forums/threads/smogon-rmt-te
 Use the command line application of the `SmogonTeamCrawler.Cmd` project.
 
 ```
-SmogonTeamCrawler.Cmd [--full] [--no-search] [--delay <seconds>] [--recent-days <days>] [--headed]
+SmogonTeamCrawler.Cmd [--full] [--no-search] [--delay <seconds>] [--paste-delay <seconds>] [--recent-days <days>] [--headed]
 ```
 
 The crawl state is kept in `SmogonDump.db` in the working directory. Keep that file between runs:
@@ -27,7 +27,7 @@ The crawl state is kept in `SmogonDump.db` in the working directory. Keep that f
 
 Pages are loaded with a headless Chromium through [Playwright](https://playwright.dev/dotnet/), so cookies and scripts work like in a browser and a bot check that solves itself is passed. The crawler reads the HTML as the server sent it; images are not loaded. Chromium is downloaded on the first run (to `%LOCALAPPDATA%\ms-playwright` or `~/.cache/ms-playwright`). On Linux, the system libraries Chromium needs are installed once with `pwsh bin/<config>/net8.0/playwright.ps1 install-deps chromium` (or see [the Playwright docs](https://playwright.dev/dotnet/docs/browsers#install-system-dependencies)). `--headed` shows the browser window.
 
-Requests go out one at a time per host with a pause of `--delay` seconds (default 2). The crawler identifies itself with the User-Agent `SmogonTeamCrawler/3.0 (+https://github.com/FullLifeGames/Smogon-Team-Crawler)`, waits as long as `Retry-After` asks and does not retry 404s. At the end it prints how many requests it sent.
+Requests go out one at a time per host with a pause of `--delay` seconds (default 2). Paste sites (pokepast.es, pastebin.com, hastebin.com and Showdown's team storage) get a pause of `--paste-delay` seconds instead (default 0.5): a first run fetches thousands of pastes, and at 2 s they took most of its time. The crawler identifies itself with the User-Agent `SmogonTeamCrawler/3.0 (+https://github.com/FullLifeGames/Smogon-Team-Crawler)`, waits as long as `Retry-After` asks and does not retry 404s. At the end it prints how many requests it sent.
 
 If Smogon answers with a bot check or an unexpected page, the crawl stops with exit code 2. The team files and the stored state are left as they were; threads read before the stop are kept and the next run continues from there.
 
