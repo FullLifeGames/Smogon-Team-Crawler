@@ -67,15 +67,16 @@ namespace SmogonTeamCrawler.Core.Collector
             var counts = new List<string>();
             foreach (var query in queries)
             {
-                var known = hits.Count;
-                if (!await SearchRangeAsync(query, nodeIds, since, before, hits, uncovered).ConfigureAwait(false))
+                // Posts of this query, also those another query found before
+                var matched = new HashSet<(long, long?)>();
+                if (!await SearchRangeAsync(query, nodeIds, since, before, hits, matched, uncovered).ConfigureAwait(false))
                 {
                     return null;
                 }
-                counts.Add($"\"{Shorten(query)}\" {hits.Count - known}");
+                counts.Add($"\"{Shorten(query)}\" {matched.Count}");
             }
             var range = (since != null ? $" since {since:yyyy-MM-dd}" : "") + (before != null ? $" before {before:yyyy-MM-dd}" : "");
-            Console.WriteLine($"Searched posts{range} in {nodeIds.Count} forum(s): {string.Join(", ", counts)}");
+            Console.WriteLine($"Searched posts{range} in {nodeIds.Count} forum(s): {string.Join(", ", counts)}, {hits.Count} post(s) in all");
             return new SearchResult(hits.Values.ToList(), uncovered);
         }
 
@@ -83,7 +84,7 @@ namespace SmogonTeamCrawler.Core.Collector
         /// Pages through the results by date. A day with more results than a search shows is split by forum; a single forum
         /// with such a day is <paramref name="uncovered"/>. False if guests cannot search.
         /// </summary>
-        private async Task<bool> SearchRangeAsync(string query, IReadOnlyList<long> nodeIds, DateTime? since, DateTime? before, Dictionary<(long, long?), SearchHit> hits, HashSet<long> uncovered)
+        private async Task<bool> SearchRangeAsync(string query, IReadOnlyList<long> nodeIds, DateTime? since, DateTime? before, Dictionary<(long, long?), SearchHit> hits, HashSet<(long, long?)> matched, HashSet<long> uncovered)
         {
             var end = before;
             while (true)
@@ -95,6 +96,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 }
                 foreach (var hit in found)
                 {
+                    matched.Add((hit.ThreadId, hit.PostId));
                     hits.TryAdd((hit.ThreadId, hit.PostId), hit);
                 }
                 if (!cutOff)
@@ -107,14 +109,14 @@ namespace SmogonTeamCrawler.Core.Collector
                 if (oldestDay != null && (end == null || oldestDay < end))
                 {
                     end = oldestDay;
-                    Console.WriteLine($"  \"{Shorten(query)}\": {hits.Count} post(s) so far, searching before {end:yyyy-MM-dd}");
+                    Console.WriteLine($"  \"{Shorten(query)}\": {matched.Count} post(s) so far, searching before {end:yyyy-MM-dd}");
                     continue;
                 }
                 if (nodeIds.Count > 1)
                 {
                     var half = nodeIds.Count / 2;
-                    return await SearchRangeAsync(query, nodeIds.Take(half).ToList(), since, end, hits, uncovered).ConfigureAwait(false)
-                        && await SearchRangeAsync(query, nodeIds.Skip(half).ToList(), since, end, hits, uncovered).ConfigureAwait(false);
+                    return await SearchRangeAsync(query, nodeIds.Take(half).ToList(), since, end, hits, matched, uncovered).ConfigureAwait(false)
+                        && await SearchRangeAsync(query, nodeIds.Skip(half).ToList(), since, end, hits, matched, uncovered).ConfigureAwait(false);
                 }
                 Console.WriteLine($"Forum {nodeIds[0]} has more than {MaxResultPages * 10} results for \"{Shorten(query)}\" on a single day; its listing is walked instead.");
                 uncovered.Add(nodeIds[0]);
@@ -122,7 +124,8 @@ namespace SmogonTeamCrawler.Core.Collector
             }
         }
 
-        private static string Shorten(string query) => query.Length <= 40 ? query : query[..39] + "…";
+        /// <summary>ASCII dots: a Windows console shows "…" as ".".</summary>
+        private static string Shorten(string query) => query.Length <= 40 ? query : query[..37] + "...";
 
         private async Task<(List<SearchHit>? Hits, bool CutOff)> SearchPagesAsync(string query, IReadOnlyList<long> nodeIds, DateTime? since, DateTime? before)
         {

@@ -139,6 +139,33 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public async Task Search_LogsThePostsOfEachQuery_AndOfAll()
+        {
+            // The first window shows 20 pages (cut off), the window before its oldest day the rest.
+            var lastPage = ResultPage.Replace("class=\"pageNav-jump pageNav-jump--next\"", "");
+            var search = new PostSearch(url => Task.FromResult(url.Contains("c[older_than]") ? lastPage : ResultPage));
+            var output = new System.IO.StringWriter();
+            var console = Console.Out;
+            Console.SetOut(output);
+            try
+            {
+                // Both queries find the same 3 posts.
+                await search.SearchAsync(new[] { "pokepast.es", "Nature (Adamant | Jolly | Impish | Careful | Sassy) (Timid | Modest)" }, new long[] { 859 }, null);
+            }
+            finally
+            {
+                Console.SetOut(console);
+            }
+
+            Assert.That(output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries), Is.EqualTo(new[]
+            {
+                "  \"pokepast.es\": 3 post(s) so far, searching before 2022-12-10",
+                "  \"Nature (Adamant | Jolly | Impish | Ca...\": 3 post(s) so far, searching before 2022-12-10",
+                "Searched posts in 1 forum(s): \"pokepast.es\" 3, \"Nature (Adamant | Jolly | Impish | Ca...\" 3, 3 post(s) in all",
+            }));
+        }
+
+        [Test]
         public async Task Search_AnsweredWithAnErrorPage_IsNotAvailable()
         {
             var search = new PostSearch(_ => Task.FromResult("<html data-template=\"error\"><div class=\"blockMessage\">The search could not be completed because the search keywords were too short, too long, or too common.</div></html>"));
