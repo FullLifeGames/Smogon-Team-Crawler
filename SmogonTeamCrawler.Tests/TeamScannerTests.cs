@@ -14,17 +14,21 @@ namespace SmogonTeamCrawler.Tests
     [TestFixture]
     public class TeamScannerTests
     {
-        private static string SubForum(string path, string name, string children = "", bool link = false) =>
+        /// <summary>A sub-forum link as Smogon renders it since November 2026: no "subNodeLink--forum", "--unread" only if unread.</summary>
+        private static string SubForum(string path, string name, string children = "", bool link = false, bool unread = false) =>
             link
                 ? $"\t<li>\n\t\t<a href=\"/forums/link-forums/{path}/\" class=\"subNodeLink subNodeLink--link\">{name}</a>\n\t</li>\n"
-                : $"\t<li>\n\t\t<a href=\"/forums/forums/{path}/\" class=\"subNodeLink subNodeLink--forum subNodeLink--unread\">\n"
+                : $"\t<li>\n\t\t<a href=\"/forums/forums/{path}/\" class=\"subNodeLink {(unread ? "subNodeLink--unread" : "")}\">\n"
                   + $"\t\t\t<i class=\"fa--xf far fa-comments  subNodeLink-icon\"><svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-hidden=\"true\" ><use href=\"/forums/data/local/icons/regular.svg?v=1#comments\"></use></svg></i>{name}\n"
                   + "\t\t</a>\n"
                   + (children.Length > 0 ? "\t\t<ol>\n" + children + "\t\t</ol>\n" : "")
                   + "\t</li>\n";
 
+        private static string SubCategory(string path, string name) =>
+            $"\t<li>\n\t\t<a href=\"/forums/categories/{path}/\" class=\"subNodeLink subNodeLink--category \">{name}</a>\n\t</li>\n";
+
         private static string Node(int id, string path, string name, string subForums = "") =>
-            $"<div class=\"node node--id{id} node--depth2 node--forum node--unread\">\n"
+            $"<div class=\"node node--id{id} node--depth2 node--unread\">\n"
             + "\t<div class=\"node-body\">\n\t\t<div class=\"node-main js-nodeMain\">\n\t\t\t<h3 class=\"node-title\">\n"
             + $"\t\t\t\t<a href=\"/forums/forums/{path}/\" data-xf-init=\"element-tooltip\" data-shortcut=\"node-description\">{name}</a>\n"
             + "\t\t\t</h3>\n"
@@ -48,19 +52,25 @@ namespace SmogonTeamCrawler.Tests
             Node(383, "intro_hub", "Information &amp; Resources", SubForum("admin-reports.359", "Admin Reports")),
             Node(725, "smogon-metagames.725", "Smogon Metagames",
                 SubForum("overused.726", "OverUsed",
-                    SubForum("gen-9-ou-archive.841", "Gen 9 OU Archive") + SubForum("ou-analyses.683", "OU Analyses", link: true))
-                + SubForum("ubers.727", "Ubers")),
+                    SubForum("gen-9-ou-archive.841", "Gen 9 OU Archive", unread: true) + SubForum("ou-analyses.683", "OU Analyses", link: true))
+                + SubForum("ubers.727", "Ubers", unread: true)
+                + SubCategory("metagame-archive.999", "Metagame Archive")),
             Node(31, "ruins-of-alph.31", "Ruins of Alph",
                 SubForum("gen1", "RBY", SubForum("rby-archive.976", "RBY Archive")) + SubForum("rate-my-team-rby.777", "Rate My Team (RBY)", link: true)),
             Node(457, "cartridge-card-metagames.457", "Cartridge &amp; Card Metagames", SubForum("vgc.127", "VGC")),
             Node(52, "rate-my-team.52", "Rate My Team",
-                SubForum("sv-ou-teams.748", "SV OU Teams") + SubForum("sv-other-teams.749", "SV Other Teams")),
+                SubForum("sv-ou-teams.748", "SV OU Teams", unread: true) + SubForum("sv-other-teams.749", "SV Other Teams")),
             Node(53, "wi-fi.53", "Wi-Fi", SubForum("wi-fi-archive.1", "Wi-Fi Archive")),
+            // Gen 8 Competitive Discussion moved below Closed Forums, deeper than the index shows.
             Node(283, "thread-cryonics.283", "Thread Cryonics",
-                SubForum("gen-7-competitive-discussion.249", "Gen 7 Competitive Discussion", SubForum("sm-ou.387", "SM OU"))
-                + SubForum("gen-8-competitive-discussion.525", "Gen 8 Competitive Discussion",
-                    SubForum("ss-ou.526", "SS OU", SubForum("gen-8-ou-archive.637", "Gen 8 OU Archive")) + SubForum("ss-ubers.527", "SS Ubers"))
-                + SubForum("the-smog.79", "The Smog")));
+                SubForum("smogon-gallery.788", "Smogon Gallery") + SubForum("closed-forums.183", "Closed Forums")));
+
+        /// <summary>The page of Gen 8 Competitive Discussion: its sub-forums as nodes, theirs as sub-forum links.</summary>
+        private static readonly string Gen8Page = Page("forum_view",
+            Node(526, "ss-ou.526", "SS OU", SubForum("gen-8-ou-archive.637", "Gen 8 OU Archive")),
+            Node(527, "ss-ubers.527", "SS Ubers", SubForum("circuit-tournaments.489", "Circuit Tournaments", link: true)));
+
+        private const string Gen8Url = "https://www.smogon.com/forums/forums/gen-8-competitive-discussion.525/";
 
         private static readonly string Archive = Page("category_view",
             Node(322, "2006-2015-b101-archive.322", "2006 - 2015 B101 Archive", SubForum("2020-2023-b101-resources.557", "2020 - 2023 B101 Resources")),
@@ -68,30 +78,40 @@ namespace SmogonTeamCrawler.Tests
                 SubForum("bw-ou-teams.119", "BW OU Teams") + SubForum("ss-other-teams.546", "SS Other Teams")),
             Node(187, "2011-2013-translation-projects.187", "2011 - 2013 Translation Projects"));
 
-        private static async Task<SmogonTeamCrawler.Core.Data.ScanResult> Scan(string index, string archive)
+        private static async Task<SmogonTeamCrawler.Core.Data.ScanResult> Scan(string index, string archive, string? gen8Page = null)
         {
             var http = new FakeHttpHandler();
             http.Html(Common.SMOGON_FORUMS_URL, index);
             http.Html(Common.ARCHIVE_URL, archive);
+            if (gen8Page != null)
+            {
+                http.Html(Gen8Url, gen8Page);
+            }
+            else
+            {
+                http.Status(Gen8Url, System.Net.HttpStatusCode.NotFound);
+            }
             return await new TeamScanner(new HttpClient(http)).Scan();
         }
+
+        private static readonly System.Collections.Generic.KeyValuePair<string, string>[] RegularForums =
+        {
+            Pair("gen9OverUsed", "overused.726"),
+            Pair("gen9Gen 9 OU Archive", "gen-9-ou-archive.841"),
+            Pair("gen9Ubers", "ubers.727"),
+            Pair("gen8RBY", "gen1"),
+            Pair("gen8RBY Archive", "rby-archive.976"),
+            Pair("gen8SS OU", "ss-ou.526"),
+            Pair("gen8Gen 8 OU Archive", "gen-8-ou-archive.637"),
+            Pair("gen8SS Ubers", "ss-ubers.527"),
+        };
 
         [Test]
         public async Task Scan_FindsTheSubForumsOfTheConfiguredSectionsOnly()
         {
-            var result = await Scan(Index, Archive);
+            var result = await Scan(Index, Archive, Gen8Page);
 
-            Assert.That(result.TierToRegularLinks, Is.EquivalentTo(new[]
-            {
-                Pair("gen9OverUsed", "overused.726"),
-                Pair("gen9Gen 9 OU Archive", "gen-9-ou-archive.841"),
-                Pair("gen9Ubers", "ubers.727"),
-                Pair("gen8RBY", "gen1"),
-                Pair("gen8RBY Archive", "rby-archive.976"),
-                Pair("gen8SS OU", "ss-ou.526"),
-                Pair("gen8Gen 8 OU Archive", "gen-8-ou-archive.637"),
-                Pair("gen8SS Ubers", "ss-ubers.527"),
-            }));
+            Assert.That(result.TierToRegularLinks, Is.EquivalentTo(RegularForums));
             Assert.That(result.TierToRmtLinks, Is.EquivalentTo(new[]
             {
                 Pair("SV OU Teams", "sv-ou-teams.748"),
@@ -104,10 +124,41 @@ namespace SmogonTeamCrawler.Tests
         [Test]
         public async Task Scan_WithAMissingSection_StillReturnsTheOthers()
         {
-            var result = await Scan(Index.Replace(">Rate My Team<", ">Team Rating<"), Archive);
+            var result = await Scan(Index.Replace(">Rate My Team<", ">Team Rating<"), Archive, Gen8Page);
 
             Assert.That(result.TierToRmtLinks.Keys, Is.EquivalentTo(new[] { "BW OU Teams", "SS Other Teams" }));
             Assert.That(result.TierToRegularLinks, Has.Count.EqualTo(8));
+        }
+
+        [Test]
+        public async Task Scan_WithTheSubForumMarkupBeforeNovember2026_FindsTheSameForums()
+        {
+            var index = Index.Replace("class=\"subNodeLink \"", "class=\"subNodeLink subNodeLink--forum\"")
+                .Replace("class=\"subNodeLink subNodeLink--unread\"", "class=\"subNodeLink subNodeLink--forum subNodeLink--unread\"")
+                .Replace("node--depth2 node--unread", "node--depth2 node--forum node--unread");
+
+            var result = await Scan(index, Archive, Gen8Page);
+
+            Assert.That(result.TierToRegularLinks, Is.EquivalentTo(RegularForums));
+            Assert.That(result.TierToRmtLinks, Has.Count.EqualTo(4));
+        }
+
+        [Test]
+        public async Task Scan_WithoutTheGen8Forum_ReturnsTheOthers()
+        {
+            var result = await Scan(Index, Archive, gen8Page: null);
+
+            Assert.That(result.TierToRegularLinks.Keys, Is.EquivalentTo(new[] { "gen9OverUsed", "gen9Gen 9 OU Archive", "gen9Ubers", "gen8RBY", "gen8RBY Archive" }));
+        }
+
+        [Test]
+        public void Scan_WithASectionWithoutSubForums_StopsTheCrawl()
+        {
+            // Sub-forum links that are no longer recognized: the run would write team files without their teams.
+            var index = Index.Replace("class=\"subNodeLink ", "class=\"childLink ");
+
+            var error = Assert.ThrowsAsync<UnexpectedPageException>(() => Scan(index, Archive, Gen8Page));
+            Assert.That(error!.Message, Does.Contain("'Smogon Metagames' lists no sub-forums"));
         }
 
         [Test]
