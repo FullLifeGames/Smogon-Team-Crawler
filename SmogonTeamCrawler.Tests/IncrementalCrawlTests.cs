@@ -79,6 +79,21 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(teams.Single(t => t.TeamString.StartsWith("MonB2")).URL, Is.EqualTo(_b.Url + "page-2#post-22"));
         }
 
+        [TestCase(SmogonHtml.PostTag)]
+        [TestCase(SmogonHtml.PostTagBefore2026)]
+        public async Task Posts_AreRead_InTheMarkupSinceAndBeforeNovember2026(string postTag)
+        {
+            _forum.PostTag = postTag;
+
+            var teams = await Crawl();
+
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+            var b2 = teams.Single(t => t.TeamString.StartsWith("MonB2"));
+            Assert.That(b2.URL, Is.EqualTo(_b.Url + "page-2#post-22"));
+            Assert.That(b2.PostedBy, Is.EqualTo("Tester"));
+            Assert.That(b2.PostDate, Is.EqualTo(Old.AddHours(4)));
+        }
+
         [Test]
         public async Task SecondRun_WithoutChanges_ReadsOnlyTheFirstListingPage()
         {

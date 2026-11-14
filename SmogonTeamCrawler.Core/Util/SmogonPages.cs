@@ -60,12 +60,20 @@ namespace SmogonTeamCrawler.Core.Util
             {
                 throw new SmogonAccessBlockedException(url);
             }
-            // message--post, or message--article for the first post of article threads
-            if (!html.Contains("<article class=\"message message--"))
+            if (!PostStartRegex().IsMatch(html))
             {
                 throw new UnexpectedPageException(url, "the page contains no posts");
             }
         }
+
+        [GeneratedRegex("<article class=\"message [^\"]*\\bjs-post\\b")]
+        private static partial Regex PostStartRegex();
+
+        /// <summary>
+        /// Whether the line opens a post: "message js-post …" since Smogon's markup change of November 2026, before that
+        /// "message message--post js-post …" (or message--article for the first post of article threads).
+        /// </summary>
+        public static bool IsPostStart(string line) => line.Contains("<article class=\"message ") && PostStartRegex().IsMatch(line);
 
         [GeneratedRegex("class=\"pageNav-page[^\"]*\"[^>]*>\\s*<a[^>]*>\\s*(\\d+)\\s*</a>")]
         private static partial Regex PageNavPageRegex();

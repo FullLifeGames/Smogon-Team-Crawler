@@ -878,7 +878,7 @@ namespace SmogonTeamCrawler.Core.Collector
         {
             if (!lineDataHandler.PostStarted)
             {
-                if (line.Contains("<article class=\"message message--post js-post js-inlineModContainer"))
+                if (SmogonPages.IsPostStart(line))
                 {
                     lineDataHandler.PostStarted = true;
                 }

@@ -48,6 +48,9 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public int ThreadsPerPage { get; set; } = 40;
         public List<FakeThread> Threads { get; } = new();
 
+        /// <summary>The opening tag of each post on the thread pages.</summary>
+        public string PostTag { get; set; } = SmogonHtml.PostTag;
+
         public FakeThread AddThread(long id, bool sticky = false, string prefix = "")
         {
             var thread = new FakeThread(id) { Sticky = sticky, Prefix = prefix };
@@ -73,7 +76,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
             {
                 for (var page = 1; page <= thread.Pages.Count; page++)
                 {
-                    var html = SmogonHtml.ThreadPage(thread, page);
+                    var html = SmogonHtml.ThreadPage(thread, page, PostTag);
                     http.Html(SmogonHtml.PageUrl(thread.Url, page), html);
                     foreach (var post in thread.Pages[page - 1])
                     {
@@ -317,7 +320,13 @@ namespace SmogonTeamCrawler.Tests.Fakes
             return html.ToString();
         }
 
-        public static string ThreadPage(FakeThread thread, int page)
+        /// <summary>The opening tag of a post since Smogon's markup change of November 2026.</summary>
+        public const string PostTag = "<article class=\"message js-post js-inlineModContainer  \"";
+
+        /// <summary>The opening tag of a post before November 2026.</summary>
+        public const string PostTagBefore2026 = "<article class=\"message message--post js-post js-inlineModContainer  \"";
+
+        public static string ThreadPage(FakeThread thread, int page, string postTag = PostTag)
         {
             var threadPath = new Uri(thread.Url).AbsolutePath;
             var html = new StringBuilder();
@@ -326,7 +335,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
             html.Append("<div class=\"block-body js-replyNewMessageContainer\">\n");
             foreach (var post in thread.Pages[page - 1])
             {
-                html.Append("<article class=\"message message--post js-post js-inlineModContainer  \"\n");
+                html.Append(postTag + "\n");
                 html.Append($"\t\tdata-author=\"{post.Author}\"\n");
                 html.Append($"\t\tdata-content=\"post-{post.Id}\"\n");
                 html.Append($"\t\tid=\"js-post-{post.Id}\">\n");
