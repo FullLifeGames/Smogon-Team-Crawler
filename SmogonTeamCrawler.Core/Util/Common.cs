@@ -21,6 +21,9 @@ namespace SmogonTeamCrawler.Core.Util
         public static string CurrentGen { get; set; } = "gen8";
         public static string NewestGen { get; set; } = "gen9";
 
+        /// <summary>Pokémon Champions has formats of its own on Showdown: "[Gen 9 Champions] OU" is gen9championsou.</summary>
+        public static string ChampionsGen { get; set; } = "gen9champions";
+
         public static string[] HardCodedBlacklistedPastes { get; set; } = ["spEtvevT", "Cyg8Rp53", "c6EFsDjr", "a155d09dc696b334"];
 
         public static double KoeffScale { get; set; } = 1.1;
