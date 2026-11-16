@@ -12,9 +12,9 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Setup .NET
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.x
     - name: Restore dependencies
@@ -30,14 +30,22 @@ jobs:
     
     needs: build
     if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+      id-token: write
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Setup .NET
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.x
     - name: Create Package
       run:  dotnet pack "SmogonTeamCrawler.Core/SmogonTeamCrawler.Core.csproj" --include-symbols -c Release
+    - name: NuGet login (OIDC to temporary API key)
+      uses: NuGet/login@v1
+      id: login
+      with:
+        user: FullLifeGames # nuget.org profile name of the package owner
     - name: Push Package
-      run:  dotnet nuget push "**\*.nupkg" --api-key ${{ secrets.NUGET_KEY }} --skip-duplicate -s https://api.nuget.org/v3/index.json
+      run:  dotnet nuget push "**\*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate -s https://api.nuget.org/v3/index.json

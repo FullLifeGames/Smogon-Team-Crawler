@@ -6,6 +6,10 @@ using System.Linq;
 
 namespace SmogonTeamCrawler.Tests
 {
+    /// <summary>
+    /// Tests against the live site. They are explicit so that builds do not send requests to Smogon;
+    /// run them on purpose with: dotnet test --filter TestCategory=Live
+    /// </summary>
     [TestFixture]
     public class TestShowdownReplayScouter
     {
@@ -18,6 +22,8 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        [Explicit("Sends requests to smogon.com")]
+        [Category("Live")]
         public void Crawl_Scan()
         {
             var scanResult = _teamCrawler.Scanner.Scan().Result;
@@ -27,6 +33,8 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        [Explicit("Sends requests to smogon.com")]
+        [Category("Live")]
         public void Crawl_Single()
         {
             var collectedTeams = new Dictionary<string, ICollection<Team>>();
@@ -46,6 +54,8 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        [Explicit("Sends requests to smogon.com")]
+        [Category("Live")]
         public void Crawl_Single_DPP()
         {
             var collectedTeams = new Dictionary<string, ICollection<Team>>();
@@ -65,6 +75,8 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        [Explicit("Sends requests to smogon.com")]
+        [Category("Live")]
         public void Crawl_Single_Date_Test()
         {
             var collectedTeams = new Dictionary<string, ICollection<Team>>();
@@ -86,7 +98,8 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
-        [Explicit]
+        [Explicit("Sends requests to smogon.com")]
+        [Category("Live")]
         public void Crawl_Single_BDSP()
         {
             var scanResult = new Dictionary<string, string>() { { "BDSP Metagames", "https://www.smogon.com/forums/forums/bdsp-metagames.699/" } };
@@ -103,7 +116,8 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
-        [Explicit]
+        [Explicit("Sends requests to smogon.com")]
+        [Category("Live")]
         public void Crawl_Single_National_Dex()
         {
             var scanResult = new Dictionary<string, string>() { { "National Dex", "https://www.smogon.com/forums/forums/national-dex.533/" } };
@@ -120,7 +134,8 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
-        [Explicit]
+        [Explicit("Sends requests to smogon.com")]
+        [Category("Live")]
         public void Crawl_Single_Lets_Go()
         {
             var scanResult = new Dictionary<string, string>() { { "SM", "https://www.smogon.com/forums/forums/sm/" } };
@@ -137,7 +152,8 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
-        [Explicit]
+        [Explicit("Sends requests to smogon.com")]
+        [Category("Live")]
         public void Crawl_Full()
         {
             var result = _teamCrawler.Crawl(new CrawlRequest()

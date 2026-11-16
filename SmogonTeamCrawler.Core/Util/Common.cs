@@ -5,12 +5,14 @@ namespace SmogonTeamCrawler.Core.Util
 {
     public static partial class Common
     {
+        public static string UserAgent { get; set; } = "SmogonTeamCrawler/3.0 (+https://github.com/FullLifeGames/Smogon-Team-Crawler)";
+
         private static HttpClient? _httpClient;
         public static HttpClient HttpClient
         {
             get
             {
-                _httpClient ??= new HttpClient(new HttpRetryMessageHandler(new HttpClientHandler()));
+                _httpClient ??= PoliteHttpMessageHandler.CreateClient(new PoliteHttpMessageHandler());
                 return _httpClient;
             }
             set => _httpClient = value;
@@ -18,6 +20,9 @@ namespace SmogonTeamCrawler.Core.Util
 
         public static string CurrentGen { get; set; } = "gen8";
         public static string NewestGen { get; set; } = "gen9";
+
+        /// <summary>Pokémon Champions has formats of its own on Showdown: "[Gen 9 Champions] OU" is gen9championsou.</summary>
+        public static string ChampionsGen { get; set; } = "gen9champions";
 
         public static string[] HardCodedBlacklistedPastes { get; set; } = ["spEtvevT", "Cyg8Rp53", "c6EFsDjr", "a155d09dc696b334"];
 
@@ -27,6 +32,7 @@ namespace SmogonTeamCrawler.Core.Util
         private static partial Regex TeamRegexGenerated();
         public static Regex TeamRegex { get; set; } = TeamRegexGenerated();
 
+        public static string SMOGON_URL { get; set; } = "https://www.smogon.com";
         public static string SMOGON_FORUMS_URL { get; set; } = "https://www.smogon.com/forums/";
         public static string ARCHIVE_URL { get; set; } = "https://www.smogon.com/forums/categories/site-projects-archive.423/";
 

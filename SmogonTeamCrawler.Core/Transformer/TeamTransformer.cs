@@ -4,10 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SmogonTeamCrawler.Core.Transformer
 {
-    public class TeamTransformer : ITransformer
+    public partial class TeamTransformer : ITransformer
     {
         private static readonly IDictionary<string, string> _mapping = new Dictionary<string, string>
         {
@@ -120,6 +121,11 @@ namespace SmogonTeamCrawler.Core.Transformer
             var workingTier = tier.ToLower();
             var toWorkWithGen = GetToWorkWithGen(workingTier);
 
+            // The Champions forums ("Champions", "Champions Archive") are about the formats of Pokémon Champions.
+            if (workingTier.Contains("champions"))
+            {
+                return Common.ChampionsGen + ChampionsTier(url);
+            }
             if (workingTier.Contains("overused"))
             {
                 return toWorkWithGen + "ou";
@@ -187,6 +193,16 @@ namespace SmogonTeamCrawler.Core.Transformer
             }
 
             return null;
+        }
+
+        [GeneratedRegex(@"/threads/[^/]*?\b(ou|uu|doubles)\b")]
+        private static partial Regex ChampionsTierRegex();
+
+        /// <summary>The Champions format a thread is about, from the first tier in its URL ("champions-uu-…" is UU); OU by default.</summary>
+        private static string ChampionsTier(string url)
+        {
+            var tier = ChampionsTierRegex().Match(url.ToLowerInvariant());
+            return tier.Success ? tier.Groups[1].Value : "ou";
         }
 
         private static string GetToWorkWithGen(string workingTier)

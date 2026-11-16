@@ -11,10 +11,14 @@ namespace SmogonTeamCrawler.Core.Data
         public bool PostStarted { get; set; }
         public int PostLikes { get; set; }
         public DateTime PostDate { get; set; } = DateTime.Now;
+        public DateTime NewestPostDate { get; set; } = DateTime.MinValue;
         public string PostedBy { get; set; } = "";
         public string LastLine { get; set; } = "";
         public string PostLink { get; set; } = "";
         public bool LikeStarted { get; set; }
         public bool TimerHeader { get; set; }
+        /// <summary>The lines of the current post, for teams typed into its text.</summary>
+        public StringBuilder PostHtml { get; } = new();
+        public bool PostMayHaveSets { get; set; }
     }
 }
