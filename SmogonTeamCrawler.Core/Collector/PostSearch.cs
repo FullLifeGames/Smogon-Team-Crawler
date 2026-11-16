@@ -46,15 +46,19 @@ namespace SmogonTeamCrawler.Core.Collector
 
         /// <summary>
         /// The search for posts matching <paramref name="query"/> in the forums <paramref name="nodeIds"/> (without their
-        /// sub-forums), from <paramref name="since"/> on and before <paramref name="before"/>, newest first. The query is
-        /// Smogon's syntax: words are all required, "|" is or, quotes make a phrase, parentheses group. Smogon reads the
-        /// dates in its own time zone, so callers keep a day of margin.
+        /// sub-forums), from <paramref name="since"/> on and before <paramref name="before"/> (UTC), newest first. The query
+        /// is Smogon's syntax: words are all required, "|" is or, quotes make a phrase, parentheses group. The times go as
+        /// Unix timestamps, which Smogon applies to the second; dates such as 2026-11-15 it drops without a word.
         /// </summary>
         public static string Url(string query, IEnumerable<long> nodeIds, DateTime? since, DateTime? before) =>
             Common.SMOGON_FORUMS_URL + "search/1/?q=" + Uri.EscapeDataString(query) + "&t=post&o=date"
-            + (since is DateTime start ? "&c[newer_than]=" + start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "")
-            + (before is DateTime end ? "&c[older_than]=" + end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "")
+            + (since is DateTime start ? "&c[newer_than]=" + UnixSeconds(start) : "")
+            + (before is DateTime end ? "&c[older_than]=" + UnixSeconds(end) : "")
             + string.Concat(nodeIds.Select((id, index) => $"&c[nodes][{index}]={id}"));
+
+        private static string UnixSeconds(DateTime utc) =>
+            new DateTimeOffset(DateTime.SpecifyKind(utc.Kind == DateTimeKind.Local ? utc.ToUniversalTime() : utc, DateTimeKind.Utc))
+                .ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
 
         /// <summary>
         /// All posts of the forums <paramref name="nodeIds"/> that match one of <paramref name="queries"/>, from

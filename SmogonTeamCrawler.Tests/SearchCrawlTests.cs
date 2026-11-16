@@ -216,6 +216,20 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public async Task LaterRun_SearchFindsOnlyThePostsSinceTheLastRun()
+        {
+            await FirstRun();
+            _b.AddPage(new FakePost(23, _recent, "B3", "https://pokepast.es/b3"));
+            // A search that found the posts of the first run again would take more than one result page.
+            _search.ResultsPerPage = 1;
+
+            var teams = await Crawl();
+
+            Assert.That(SearchRequests(), Has.Count.EqualTo(new CollectorOptions().SearchQueries.Count), "one result page per query");
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "B3" }));
+        }
+
+        [Test]
         public async Task LaterRun_SearchesAllForumsAtOnce()
         {
             await FirstRun(forumUrls: [ForumUrl, OtherForumUrl]);
@@ -300,7 +314,7 @@ namespace SmogonTeamCrawler.Tests
 
             var pasteSearches = Searches(CollectorOptions.PasteQuery);
             Assert.That(pasteSearches, Has.Count.EqualTo(2));
-            Assert.That(pasteSearches[1], Does.Contain("&c[older_than]=" + lastDay.ToString("yyyy-MM-dd")));
+            Assert.That(pasteSearches[1], Does.Contain("&c[older_than]=" + new DateTimeOffset(lastDay.Date).ToUnixTimeSeconds()));
             Assert.That(Tags(teams).Count(tag => tag.StartsWith('S')), Is.EqualTo(25));
             Assert.That(_http.Requests, Does.Not.Contain(ForumUrl));
         }

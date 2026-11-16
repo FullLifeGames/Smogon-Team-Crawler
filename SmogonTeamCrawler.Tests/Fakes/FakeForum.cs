@@ -128,8 +128,9 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 .Select(part => part.Split('=', 2))
                 .ToDictionary(kv => Uri.UnescapeDataString(kv[0]), kv => kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : "");
             var keywords = query.GetValueOrDefault("q") ?? "";
-            var newerThan = query.TryGetValue("c[newer_than]", out var since) ? DateTime.Parse(since, CultureInfo.InvariantCulture) : DateTime.MinValue;
-            var olderThan = query.TryGetValue("c[older_than]", out var before) ? DateTime.Parse(before, CultureInfo.InvariantCulture) : DateTime.MaxValue;
+            // Unix timestamps; like Smogon, dates in another form are dropped
+            var newerThan = Timestamp(query, "c[newer_than]") ?? DateTime.MinValue;
+            var olderThan = Timestamp(query, "c[older_than]") ?? DateTime.MaxValue;
             var page = query.TryGetValue("page", out var pageText) ? int.Parse(pageText) : 1;
             var nodes = query.Where(kv => kv.Key.StartsWith("c[nodes][")).Select(kv => long.Parse(kv.Value)).ToHashSet();
 
@@ -151,12 +152,17 @@ namespace SmogonTeamCrawler.Tests.Fakes
             var shown = results.Skip((page - 1) * ResultsPerPage).Take(ResultsPerPage);
             var next = page * ResultsPerPage < results.Count
                 ? $"/forums/search/1/?page={page + 1}&amp;q={Uri.EscapeDataString(keywords)}"
-                    + (newerThan != DateTime.MinValue ? $"&amp;c[newer_than]={newerThan:yyyy-MM-dd}" : "")
-                    + (olderThan != DateTime.MaxValue ? $"&amp;c[older_than]={olderThan:yyyy-MM-dd}" : "")
+                    + (newerThan != DateTime.MinValue ? $"&amp;c[newer_than]={query["c[newer_than]"]}" : "")
+                    + (olderThan != DateTime.MaxValue ? $"&amp;c[older_than]={query["c[older_than]"]}" : "")
                     + string.Concat(nodes.Select((node, index) => $"&amp;c[nodes][{index}]={node}")) + "&amp;o=date"
                 : null;
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(SmogonHtml.SearchResults(shown, next)) };
         }
+
+        private static DateTime? Timestamp(Dictionary<string, string> query, string key) =>
+            query.TryGetValue(key, out var value) && long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds)
+                ? DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime
+                : null;
     }
 
     /// <summary>

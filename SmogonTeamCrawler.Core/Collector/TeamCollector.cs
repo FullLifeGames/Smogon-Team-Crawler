@@ -194,7 +194,9 @@ namespace SmogonTeamCrawler.Core.Collector
             return forum.NodeId != 0 ? forum.NodeId : null;
         }
 
-        /// <summary>The search for posts since a run starts a day early: Smogon reads the dates in its own time zone.</summary>
+        /// <summary>
+        /// The search for posts since a run starts the day before it, for a margin: hits on pages read since cost no request.
+        /// </summary>
         private static DateTime SearchStart(DateTime lastCrawl) => lastCrawl.Date.AddDays(-1);
 
         /// <summary>A search of forums, with the time it started: the forums are covered up to then.</summary>

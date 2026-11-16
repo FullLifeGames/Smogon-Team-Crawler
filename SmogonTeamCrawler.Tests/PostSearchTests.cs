@@ -82,7 +82,7 @@ namespace SmogonTeamCrawler.Tests
             </li>
             </ol>
             <div class="pageNav  pageNav--skipEnd">
-            	<a href="/forums/search/72803883/?page=2&amp;q=pokepast.es&amp;c[newer_than]=2026-11-01&amp;o=date" class="pageNav-jump pageNav-jump--next">Next</a>
+            	<a href="/forums/search/72803883/?page=2&amp;q=pokepast.es&amp;c[newer_than]=1793491200&amp;o=date" class="pageNav-jump pageNav-jump--next">Next</a>
             </div>
             </html>
             """;
@@ -92,7 +92,7 @@ namespace SmogonTeamCrawler.Tests
         {
             var hits = SearchResultParser.Parse(ResultPage, out var next);
 
-            Assert.That(next, Is.EqualTo("https://www.smogon.com/forums/search/72803883/?page=2&q=pokepast.es&c[newer_than]=2026-11-01&o=date"));
+            Assert.That(next, Is.EqualTo("https://www.smogon.com/forums/search/72803883/?page=2&q=pokepast.es&c[newer_than]=1793491200&o=date"));
             Assert.That(hits, Is.EqualTo(new[]
             {
                 new SearchHit(3712239, "https://www.smogon.com/forums/threads/national-dex-uu-team-bazaar.3712239/", 9428584, 1207,
@@ -176,8 +176,9 @@ namespace SmogonTeamCrawler.Tests
         [Test]
         public void Url_IsTheSearchOfTheForums_ByDate()
         {
-            Assert.That(PostSearch.Url("pokepast.es | \"EVs Nature\"", new long[] { 726, 748 }, new DateTime(2026, 11, 10), new DateTime(2026, 11, 12)),
-                Is.EqualTo("https://www.smogon.com/forums/search/1/?q=pokepast.es%20%7C%20%22EVs%20Nature%22&t=post&o=date&c[newer_than]=2026-11-10&c[older_than]=2026-11-12&c[nodes][0]=726&c[nodes][1]=748"));
+            // Unix timestamps: Smogon drops dates such as 2026-11-10 from the search (since 2026-11-16)
+            Assert.That(PostSearch.Url("pokepast.es | \"EVs Nature\"", new long[] { 726, 748 }, new DateTime(2026, 11, 10, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 11, 12)),
+                Is.EqualTo("https://www.smogon.com/forums/search/1/?q=pokepast.es%20%7C%20%22EVs%20Nature%22&t=post&o=date&c[newer_than]=1794268800&c[older_than]=1794441600&c[nodes][0]=726&c[nodes][1]=748"));
             Assert.That(PostSearch.Url("psim.us", new long[] { 670 }, null, null),
                 Is.EqualTo("https://www.smogon.com/forums/search/1/?q=psim.us&t=post&o=date&c[nodes][0]=670"));
         }
