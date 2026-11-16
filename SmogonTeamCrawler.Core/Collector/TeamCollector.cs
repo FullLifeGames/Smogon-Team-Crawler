@@ -28,6 +28,12 @@ namespace SmogonTeamCrawler.Core.Collector
         private const int MaxFailedThreadPagesInARow = 5;
 
         /// <summary>
+        /// The version of the page parser, stored with each page. 1: teams typed into posts. Pages without teams that an
+        /// older parser read are read again.
+        /// </summary>
+        public const int ParserVersion = 1;
+
+        /// <summary>
         /// Pages that may wait for their pastes while the next pages are read. About a minute of reading ahead, enough for
         /// most bursts of pastes, while the memory stays bounded (a waiting page holds its HTML, about 1 MB).
         /// </summary>
@@ -110,6 +116,10 @@ namespace SmogonTeamCrawler.Core.Collector
                     break;
             }
             summary ??= await CollectByListingAsync(forum, url, incremental: forum.Complete && !_options.FullRefresh).ConfigureAwait(false);
+            if (await RereadOutdatedPagesAsync(forum, url).ConfigureAwait(false) is > 0 and var reread)
+            {
+                summary += $", {reread} thread(s) read again by the new parser";
+            }
 
             var teamCount = 0;
             foreach (var (threadId, entry) in forum.Threads.ToList())
@@ -540,6 +550,60 @@ namespace SmogonTeamCrawler.Core.Collector
         }
 
         /// <summary>
+        /// Reads the pages again that an older parser (<see cref="ParserVersion"/>) found no teams on: it missed teams typed
+        /// into posts. Pages that cannot be read now are tried again next run. Returns the number of threads read.
+        /// </summary>
+        private async Task<int> RereadOutdatedPagesAsync(ForumCrawlState forum, string url)
+        {
+            var updatedThreads = 0;
+            var stored = new List<Task>();
+            try
+            {
+                foreach (var (threadId, entry) in forum.Threads.ToList())
+                {
+                    var state = _store.GetThread(threadId);
+                    if (state == null || (state.ForumUrl.Length > 0 && state.ForumUrl != url))
+                    {
+                        continue;
+                    }
+                    var pages = state.Pages
+                        .Where(kv => kv.Value.ParserVersion < ParserVersion && kv.Value.Teams.Count == 0)
+                        .Select(kv => kv.Key)
+                        .Order()
+                        .ToList();
+                    if (pages.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    var threadUrl = state.Url.Length > 0 ? state.Url : entry.Url;
+                    Console.WriteLine($"Reading {threadUrl} again (page {FormatPages(pages)}, read by an older parser)");
+                    var read = await ReadPagesAsync(threadUrl, entry.Prefix, pages, int.MaxValue, extendToEnd: false).ConfigureAwait(false);
+                    if (read.Result == ThreadUpdate.Gone)
+                    {
+                        // Nothing to find any more
+                        pages.ForEach(page => state.Pages[page].ParserVersion = ParserVersion);
+                        _store.SetThread(threadId, state);
+                    }
+                    if (read.Result != ThreadUpdate.Updated)
+                    {
+                        continue;
+                    }
+                    updatedThreads++;
+                    // The latest post and the pages read up to stay as they are: a later run reads on from there.
+                    stored.Add(StoreThreadAsync(threadId, threadUrl, url, state, read.NumberOfPages, read.Analyses, latestPostTimestamp: null));
+                }
+            }
+            catch
+            {
+                await WhenAllIgnoringErrors(stored).ConfigureAwait(false);
+                throw;
+            }
+            await Task.WhenAll(stored).ConfigureAwait(false);
+            return updatedThreads;
+        }
+
+        /// <summary>
         /// Reads the given pages of a thread found by search; see <see cref="UpdateThreadAsync"/> for the result. On the
         /// <paramref name="firstRun"/>, the thread's pages count as read up to its current last page.
         /// </summary>
@@ -871,6 +935,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 Teams = teams,
                 NewestPostDate = lineDataHandler.NewestPostDate,
                 FetchedAt = fetchedAt,
+                ParserVersion = ParserVersion,
             };
         }
 
@@ -911,6 +976,17 @@ lineDataHandler.PostLink = line[(line.IndexOf("data-content=\"") + 5)..];
             else if (line.StartsWith("\t</article>"))
             {
                 lineDataHandler.PostStarted = false;
+                if (currentTeams.Count == 0 && lineDataHandler.PostMayHaveSets)
+                {
+                    // Written into the post, as before code blocks and pastes
+                    var names = await _showdownNames.Value.ConfigureAwait(false);
+                    foreach (var typedTeam in PostTextTeams.Find(lineDataHandler.PostHtml.ToString(), names))
+                    {
+                        currentTeams.Add(typedTeam);
+                    }
+                }
+                lineDataHandler.PostHtml.Clear();
+                lineDataHandler.PostMayHaveSets = false;
                 foreach (var team in currentTeams)
                 {
                     var tmpTeam = team;
@@ -1118,6 +1194,8 @@ lineDataHandler.PostLink = line[(line.IndexOf("data-content=\"") + 5)..];
                         }
                     }
                 }
+                lineDataHandler.PostHtml.Append(line).Append('\n');
+                lineDataHandler.PostMayHaveSets |= PostTextTeams.MayHaveSets(line);
             }
             lineDataHandler.LastLine = line;
         }

@@ -451,6 +451,45 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B2", "B3", "C1", "legacyB1" }));
         }
 
+        [Test]
+        public async Task TeamTypedIntoAPost_IsATeam()
+        {
+            _d.Pages[0][0] = _d.Pages[0][0] with { Text = PostTextTeamsTests.TypedTeam };
+
+            var teams = await Crawl(afterPublish: () => PostTextTeamsTests.ServeShowdownData(_http));
+
+            var typed = teams.Single(t => t.URL == _d.Url + "page-1#post-41");
+            Assert.That(typed.TeamString, Is.EqualTo(PostTextTeamsTests.TypedTeamExport.ReplaceLineEndings("\n")));
+            Assert.That(typed.PostDate, Is.EqualTo(Old.AddHours(2)));
+            Assert.That(Tags(teams.Where(t => t != typed)), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+        }
+
+        [Test]
+        public async Task PageWithoutTeams_ReadByTheParserBefore_IsReadAgainOnce()
+        {
+            await Crawl();
+            // As the parser before typed teams stored them: thread D's page without teams, thread C's with its team
+            var store = new CrawlStateStore(_cache);
+            foreach (var thread in new[] { _c, _d })
+            {
+                var state = store.GetThread(thread.Id)!;
+                state.Pages[1].ParserVersion = 0;
+                store.SetThread(thread.Id, state);
+            }
+            _d.Pages[0][0] = _d.Pages[0][0] with { Text = PostTextTeamsTests.TypedTeam };
+
+            var teams = await Crawl(afterPublish: () => PostTextTeamsTests.ServeShowdownData(_http));
+
+            Assert.That(_http.Requests.Where(url => url.StartsWith("https://www.smogon.com/")), Is.EqualTo(new[] { ForumUrl, _d.Url }));
+            Assert.That(teams.Select(t => t.URL), Does.Contain(_d.Url + "page-1#post-41"));
+            Assert.That(teams, Has.Count.EqualTo(5));
+
+            teams = await Crawl(afterPublish: () => PostTextTeamsTests.ServeShowdownData(_http));
+
+            Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl }));
+            Assert.That(teams, Has.Count.EqualTo(5));
+        }
+
         private void StoreLegacy(FakeThread thread, int numberOfPages, DateTime lastPost, params (string Tag, int Page)[] teams)
         {
             var legacy = new ThreadAnalyzeResult

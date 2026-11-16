@@ -17,5 +17,8 @@ namespace SmogonTeamCrawler.Core.Data
         public string PostLink { get; set; } = "";
         public bool LikeStarted { get; set; }
         public bool TimerHeader { get; set; }
+        /// <summary>The lines of the current post, for teams typed into its text.</summary>
+        public StringBuilder PostHtml { get; } = new();
+        public bool PostMayHaveSets { get; set; }
     }
 }

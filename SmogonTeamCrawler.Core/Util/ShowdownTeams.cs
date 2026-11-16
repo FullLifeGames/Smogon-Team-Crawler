@@ -167,6 +167,18 @@ namespace SmogonTeamCrawler.Core.Util
         }
     }
 
+    /// <summary>What a Showdown data file holds.</summary>
+    public enum ShowdownData
+    {
+        Unknown,
+        Species,
+        Moves,
+        Items,
+        Abilities,
+        /// <summary>Other spellings of names ("rotomw" is "Rotom-Wash", "lefties" is "Leftovers").</summary>
+        Aliases,
+    }
+
     /// <summary>
     /// Display names of species, moves, items and abilities from Showdown's data files, looked up by ID
     /// ("boosterenergy" is "Booster Energy"). Unknown IDs are spaced the way Showdown does it ("BoosterEnergy" to "Booster Energy").
@@ -179,9 +191,15 @@ namespace SmogonTeamCrawler.Core.Util
             "https://play.pokemonshowdown.com/data/moves.json",
             "https://play.pokemonshowdown.com/data/items.js",
             "https://play.pokemonshowdown.com/data/abilities.js",
+            "https://play.pokemonshowdown.com/data/aliases.js",
         ];
 
+        private static readonly ShowdownData[] DataKinds =
+            [ShowdownData.Species, ShowdownData.Moves, ShowdownData.Items, ShowdownData.Abilities, ShowdownData.Aliases];
+
         private readonly Dictionary<string, string> _names = new();
+        private readonly Dictionary<ShowdownData, Dictionary<string, string>> _namesByKind = new();
+        private readonly Dictionary<string, string> _aliases = new();
         private readonly Dictionary<string, Dictionary<string, string>> _speciesAbilities = new();
 
         public int Count => _names.Count;
@@ -190,15 +208,17 @@ namespace SmogonTeamCrawler.Core.Util
         public static async Task<ShowdownNames> LoadAsync(HttpClient client)
         {
             var names = new ShowdownNames();
-            foreach (var url in DataUrls)
+            for (var i = 0; i < DataUrls.Length; i++)
             {
+                var url = DataUrls[i];
                 try
                 {
-                    names.Add(await client.GetStringAsync(url).ConfigureAwait(false));
+                    names.Add(await client.GetStringAsync(url).ConfigureAwait(false), DataKinds[i]);
                 }
-                catch (HttpRequestException e)
+                catch (Exception e) when (e is HttpRequestException or OperationCanceledException)
                 {
-                    Console.WriteLine($"Showdown data {url} not loaded ({e.Message}); its names are spelled from their IDs.");
+                    // Also a timeout: this load is shared by all teams of the run.
+                    Console.WriteLine($"Showdown data {url} not loaded ({e.Message}); its names are spelled from their IDs, teams typed into posts are not recognized.");
                 }
             }
             return names;
@@ -211,24 +231,38 @@ namespace SmogonTeamCrawler.Core.Util
         [GeneratedRegex("[^a-z0-9]")]
         private static partial Regex NonIdRegex();
 
+        // id:"Name" or "id":"Name" in aliases.js
+        [GeneratedRegex(@"[{,]\s*""?([a-z0-9]+)""?\s*:\s*""((?:[^""\\]|\\.)*)""")]
+        private static partial Regex AliasRegex();
+
         /// <summary>Takes the names of a data file (pokedex.json, moves.json, items.js, abilities.js).</summary>
-        public void Add(string data)
+        public void Add(string data) => Add(data, ShowdownData.Unknown);
+
+        /// <summary>Takes the names of a data file; with its <paramref name="kind"/>, <see cref="Find"/> knows them too.</summary>
+        public void Add(string data, ShowdownData kind)
         {
+            if (kind == ShowdownData.Aliases)
+            {
+                foreach (Match match in AliasRegex().Matches(data))
+                {
+                    _aliases.TryAdd(match.Groups[1].Value, Unescape(match.Groups[2].Value));
+                }
+                return;
+            }
+            if (kind != ShowdownData.Unknown && !_namesByKind.ContainsKey(kind))
+            {
+                _namesByKind[kind] = new Dictionary<string, string>();
+            }
             foreach (Match match in NameRegex().Matches(data))
             {
-                var name = match.Groups[1].Value;
-                try
-                {
-                    // \uXXXX in the JSON files ("Flabébé")
-                    name = Regex.Unescape(name);
-                }
-                catch (ArgumentException)
-                {
-                    // Keep it as written
-                }
+                var name = Unescape(match.Groups[1].Value);
                 _names.TryAdd(ToId(name), name);
                 // Showdown packs names by dropping what is not A-Z or 0-9, so "Flabébé" arrives as "Flabb".
                 _names.TryAdd(NonIdRegex().Replace(name.ToLowerInvariant(), ""), name);
+                if (kind != ShowdownData.Unknown)
+                {
+                    _namesByKind[kind].TryAdd(ToId(name), name);
+                }
             }
             if (data.TrimStart().StartsWith('{'))
             {
@@ -254,8 +288,43 @@ namespace SmogonTeamCrawler.Core.Util
             }
         }
 
+        private static string Unescape(string name)
+        {
+            try
+            {
+                // \uXXXX in the JSON files ("Flabébé")
+                return Regex.Unescape(name);
+            }
+            catch (ArgumentException)
+            {
+                return name;
+            }
+        }
+
         public string Get(string idOrName) =>
             _names.TryGetValue(ToId(idOrName), out var name) ? name : Spell(idOrName);
+
+        /// <summary>
+        /// The name of a species, move, item or ability as a post spells it ("SolarBeam", "Rotom-W", "Lefties"), through
+        /// the aliases; null if it is not one of that kind.
+        /// </summary>
+        public string? Find(ShowdownData kind, string text)
+        {
+            if (!_namesByKind.TryGetValue(kind, out var known))
+            {
+                return null;
+            }
+            var id = ToId(text);
+            if (id.Length == 0)
+            {
+                return null;
+            }
+            if (known.TryGetValue(id, out var name))
+            {
+                return name;
+            }
+            return _aliases.TryGetValue(id, out var alias) && known.TryGetValue(ToId(alias), out name) ? name : null;
+        }
 
         /// <summary>The ability in slot "0", "1", "H" or "S" of a species, if known.</summary>
         public string? SpeciesAbility(string species, string slot) =>

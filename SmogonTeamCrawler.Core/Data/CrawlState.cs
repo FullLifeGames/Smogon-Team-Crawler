@@ -60,5 +60,10 @@ namespace SmogonTeamCrawler.Core.Data
         /// <summary>Date of the newest post on the page, as displayed by Smogon.</summary>
         public DateTime NewestPostDate { get; set; }
         public DateTime FetchedAt { get; set; }
+        /// <summary>
+        /// Which parser read the page (<see cref="Collector.TeamCollector.ParserVersion"/>); 0 for pages read before teams
+        /// typed into posts were recognized. A page without teams read by an older parser is read again.
+        /// </summary>
+        public int ParserVersion { get; set; }
     }
 }

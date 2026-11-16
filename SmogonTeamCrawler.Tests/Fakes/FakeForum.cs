@@ -9,7 +9,8 @@ using System.Text;
 
 namespace SmogonTeamCrawler.Tests.Fakes
 {
-    internal record FakePost(long Id, DateTime Date, string? TeamTag = null, string? PasteUrl = null, string Author = "Tester");
+    /// <param name="Text">The post's HTML in place of "Post text", such as a team typed into it.</param>
+    internal record FakePost(long Id, DateTime Date, string? TeamTag = null, string? PasteUrl = null, string Author = "Tester", string? Text = null);
 
     internal class FakeThread
     {
@@ -345,7 +346,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 html.Append($"\t\t\t\t\t{Time("", post.Date)}\n");
                 html.Append("\t\t\t\t</a>\n\t\t\t</li>\n\t\t</ul>\n\t</header>\n");
                 html.Append("\t<div class=\"message-content js-messageContent\">\n\t\t<article class=\"message-body js-selectToQuote\">\n");
-                html.Append("<div class=\"bbWrapper\">Post text<br />\n");
+                html.Append($"<div class=\"bbWrapper\">{post.Text ?? "Post text"}<br />\n");
                 if (post.TeamTag != null && post.PasteUrl == null)
                 {
                     html.Append("<div class=\"bbCodeBlock bbCodeBlock--spoiler\">\n<div class=\"bbCodeBlock-content\">\n");
