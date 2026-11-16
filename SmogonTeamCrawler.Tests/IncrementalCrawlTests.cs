@@ -464,18 +464,30 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(Tags(teams.Where(t => t != typed)), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
         }
 
-        [Test]
-        public async Task PageWithoutTeams_ReadByTheParserBefore_IsReadAgainOnce()
+        /// <summary>
+        /// Stores the pages of threads C and D as the parser before typed teams did: D's without teams, C's with its team;
+        /// D's newest post from <paramref name="year"/>.
+        /// </summary>
+        private void StoreAsTheFirstParser(int year)
         {
-            await Crawl();
-            // As the parser before typed teams stored them: thread D's page without teams, thread C's with its team
             var store = new CrawlStateStore(_cache);
             foreach (var thread in new[] { _c, _d })
             {
                 var state = store.GetThread(thread.Id)!;
                 state.Pages[1].ParserVersion = 0;
+                if (thread == _d)
+                {
+                    state.Pages[1].NewestPostDate = new DateTime(year, 5, 1);
+                }
                 store.SetThread(thread.Id, state);
             }
+        }
+
+        [Test]
+        public async Task PageWithoutTeams_ReadByTheFirstParser_UpTo2016_IsReadAgainOnce()
+        {
+            await Crawl();
+            StoreAsTheFirstParser(2016);
             _d.Pages[0][0] = _d.Pages[0][0] with { Text = PostTextTeamsTests.TypedTeam };
 
             var teams = await Crawl(afterPublish: () => PostTextTeamsTests.ServeShowdownData(_http));
@@ -488,6 +500,56 @@ namespace SmogonTeamCrawler.Tests
 
             Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl }));
             Assert.That(teams, Has.Count.EqualTo(5));
+        }
+
+        [Test]
+        public async Task PageWithoutTeams_ReadByTheFirstParser_Since2017_IsNotReadAgain()
+        {
+            // Outside team forums, posts since 2017 paste their teams.
+            await Crawl();
+            StoreAsTheFirstParser(2017);
+
+            var teams = await Crawl(afterPublish: () => PostTextTeamsTests.ServeShowdownData(_http));
+
+            Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl }));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+        }
+
+        [Test]
+        public async Task TeamsOfTheParserBefore_AreReadAgain_ForListsOfSets()
+        {
+            await Crawl();
+            // As parser 1 stored thread D: with a list of sets taken for a team
+            var store = new CrawlStateStore(_cache);
+            var state = store.GetThread(_d.Id)!;
+            state.Pages[1].ParserVersion = 1;
+            state.Pages[1].Teams.Add(new Team(SmogonHtml.TeamText("D1", ""), 0, Old, _d.Url + "#post-41", "Someone", ""));
+            store.SetThread(_d.Id, state);
+
+            var teams = await Crawl(afterPublish: () => PostTextTeamsTests.ServeShowdownData(_http));
+
+            Assert.That(_http.Requests.Where(url => url.StartsWith("https://www.smogon.com/")), Is.EqualTo(new[] { ForumUrl, _d.Url }));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+        }
+
+        [TestCase(0, false, 2016, ForumUrl, ExpectedResult = true, TestName = "Version 0, no teams, 2016")]
+        [TestCase(0, false, 2017, ForumUrl, ExpectedResult = false, TestName = "Version 0, no teams, 2017")]
+        [TestCase(0, false, 2024, "https://www.smogon.com/forums/forums/sv-ou-teams.748/", ExpectedResult = true, TestName = "Version 0, no teams, a tier's teams")]
+        [TestCase(0, false, 2019, "https://www.smogon.com/forums/forums/bw-rate-my-team.1061/", ExpectedResult = true, TestName = "Version 0, no teams, Rate My Team")]
+        [TestCase(0, false, 2021, "https://www.smogon.com/forums/forums/rmt-archive.84/", ExpectedResult = true, TestName = "Version 0, no teams, RMT archive")]
+        [TestCase(0, false, 2022, "https://www.smogon.com/forums/forums/team-showcase.314/", ExpectedResult = true, TestName = "Version 0, no teams, team showcase")]
+        [TestCase(0, true, 2012, ForumUrl, ExpectedResult = false, TestName = "Version 0, pasted teams")]
+        [TestCase(1, true, 2024, ForumUrl, ExpectedResult = true, TestName = "Version 1, teams")]
+        [TestCase(1, false, 2012, ForumUrl, ExpectedResult = false, TestName = "Version 1, no teams")]
+        [TestCase(2, true, 2012, ForumUrl, ExpectedResult = false, TestName = "Version 2")]
+        public bool PagesOfAnOlderParser_AreReadAgain_WhereThisOneFindsOtherTeams(int version, bool teams, int year, string forumUrl)
+        {
+            var page = new PageCrawlState { ParserVersion = version, NewestPostDate = new DateTime(year, 12, 31) };
+            if (teams)
+            {
+                page.Teams.Add(new Team(SmogonHtml.TeamText("X1", ""), 0, Old, ForumUrl, "Someone", ""));
+            }
+            return TeamCollector.IsReadAgain(page, forumUrl);
         }
 
         private void StoreLegacy(FakeThread thread, int numberOfPages, DateTime lastPost, params (string Tag, int Page)[] teams)

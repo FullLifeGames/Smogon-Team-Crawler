@@ -13,7 +13,8 @@ namespace SmogonTeamCrawler.Core.Collector
     /// mostly in Pokémon Online's export: "Ninetales @ Leftovers", "Trait: Drought", "EVs: 252 HP / 120 SDef / 136 Spd",
     /// "Calm Nature (+SDef, -Atk)", moves with "-", "~" or nothing in front, with descriptions between the sets.
     /// Species, moves, items and abilities are checked against Showdown's data, so text is not taken for them.
-    /// Six sets of six species in a row make a team, written in Showdown's export format.
+    /// Six sets of six species in a row make a team, written in Showdown's export format; lists of sets to choose from
+    /// make none.
     /// </summary>
     internal static partial class PostTextTeams
     {
@@ -42,8 +43,13 @@ namespace SmogonTeamCrawler.Core.Collector
         public static IReadOnlyList<string> Find(string postHtml, ShowdownNames names)
         {
             var teams = new List<string>();
+            var sets = ReadSets(postHtml, names);
+            if (IsSetList(sets))
+            {
+                return teams;
+            }
             var team = new List<PokemonSet>();
-            foreach (var set in ReadSets(postHtml, names))
+            foreach (var set in sets)
             {
                 var same = team.Count(member => member.Species == set.Species);
                 if (same > 1 || (same == 1 && team.DistinctBy(member => member.Species).Count() < team.Count))
@@ -55,12 +61,27 @@ namespace SmogonTeamCrawler.Core.Collector
                 team.Add(set);
                 if (team.Count == SetsPerTeam)
                 {
-                    teams.Add(string.Join("\n\n", team.Select(member => member.Export())) + "\n");
+                    if (!InAlphabeticalOrder(team))
+                    {
+                        teams.Add(string.Join("\n\n", team.Select(member => member.Export())) + "\n");
+                    }
                     team.Clear();
                 }
             }
             return teams;
         }
+
+        /// <summary>
+        /// Whether the sets are a list to choose from (a set compendium, the sample sets of a tournament): sets of one
+        /// species in a row, more than once. Posts of teams have it once at most, for an alternative set or two Groudon
+        /// in Balanced Hackmons; set lists have it again and again.
+        /// </summary>
+        private static bool IsSetList(List<PokemonSet> sets) =>
+            sets.Zip(sets.Skip(1)).Count(pair => pair.First.Species == pair.Second.Species) >= 2;
+
+        /// <summary>Six species in alphabetical order are a cut from a list: a team comes in that order once in 720.</summary>
+        private static bool InAlphabeticalOrder(List<PokemonSet> team) =>
+            team.Zip(team.Skip(1)).All(pair => string.CompareOrdinal(pair.First.Species, pair.Second.Species) <= 0);
 
         /// <summary>The sets typed into a post, each once, in Showdown's export format.</summary>
         internal static List<string> FindSets(string postHtml, ShowdownNames names) =>

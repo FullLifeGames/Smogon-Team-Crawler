@@ -28,10 +28,16 @@ namespace SmogonTeamCrawler.Core.Collector
         private const int MaxFailedThreadPagesInARow = 5;
 
         /// <summary>
-        /// The version of the page parser, stored with each page. 1: teams typed into posts. Pages without teams that an
-        /// older parser read are read again.
+        /// The version of the page parser, stored with each page. 1: teams typed into posts. 2: lists of sets to choose
+        /// from are no teams. Pages an older parser read are read again where this one finds other teams (<see cref="IsReadAgain"/>).
         /// </summary>
-        public const int ParserVersion = 1;
+        public const int ParserVersion = 2;
+
+        /// <summary>
+        /// The last year whose posts still typed teams more than now and then: random pages up to 2016 gave a typed team
+        /// in 17 of 30, pages since 2017 outside team forums in none of about 3,100.
+        /// </summary>
+        private const int LastYearOfTypedTeams = 2016;
 
         /// <summary>
         /// Pages that may wait for their pastes while the next pages are read. About a minute of reading ahead, enough for
@@ -552,8 +558,26 @@ namespace SmogonTeamCrawler.Core.Collector
         }
 
         /// <summary>
-        /// Reads the pages again that an older parser (<see cref="ParserVersion"/>) found no teams on: it missed teams typed
-        /// into posts. Pages that cannot be read now are tried again next run. Returns the number of threads read.
+        /// Whether this parser reads a page again that an older one read (<see cref="ParserVersion"/>):
+        /// <list type="bullet">
+        /// <item>Version 0 missed teams typed into posts: its pages without teams up to <see cref="LastYearOfTypedTeams"/>,
+        /// and those of team forums (Rate My Team, team showcases, the teams of a tier), which typed them for longer.</item>
+        /// <item>Version 1 took lists of sets for teams: its pages with teams.</item>
+        /// </list>
+        /// </summary>
+        internal static bool IsReadAgain(PageCrawlState page, string forumUrl) => page.ParserVersion switch
+        {
+            0 => page.Teams.Count == 0 && (page.NewestPostDate.Year <= LastYearOfTypedTeams || TeamForumRegex().IsMatch(forumUrl)),
+            1 => page.Teams.Count > 0,
+            _ => false,
+        };
+
+        [GeneratedRegex(@"/forums/[^/]*(team|rmt|rate-my|showcase)[^/]*/$", RegexOptions.IgnoreCase)]
+        private static partial Regex TeamForumRegex();
+
+        /// <summary>
+        /// Reads the pages again that an older parser read and this one may find other teams on (<see cref="IsReadAgain"/>).
+        /// Pages that cannot be read now are tried again next run. Returns the number of threads read.
         /// </summary>
         private async Task<int> RereadOutdatedPagesAsync(ForumCrawlState forum, string url)
         {
@@ -569,7 +593,7 @@ namespace SmogonTeamCrawler.Core.Collector
                         continue;
                     }
                     var pages = state.Pages
-                        .Where(kv => kv.Value.ParserVersion < ParserVersion && kv.Value.Teams.Count == 0)
+                        .Where(kv => IsReadAgain(kv.Value, url))
                         .Select(kv => kv.Key)
                         .Order()
                         .ToList();

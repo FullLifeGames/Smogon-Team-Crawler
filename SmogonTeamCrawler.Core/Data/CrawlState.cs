@@ -62,7 +62,8 @@ namespace SmogonTeamCrawler.Core.Data
         public DateTime FetchedAt { get; set; }
         /// <summary>
         /// Which parser read the page (<see cref="Collector.TeamCollector.ParserVersion"/>); 0 for pages read before teams
-        /// typed into posts were recognized. A page without teams read by an older parser is read again.
+        /// typed into posts were recognized. Pages of an older parser are read again where the newer one finds other teams
+        /// (<see cref="Collector.TeamCollector.IsReadAgain"/>).
         /// </summary>
         public int ParserVersion { get; set; }
     }

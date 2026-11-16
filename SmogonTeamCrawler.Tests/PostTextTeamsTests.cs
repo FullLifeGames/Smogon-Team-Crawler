@@ -3,6 +3,8 @@ using NUnit.Framework;
 using SmogonTeamCrawler.Core.Collector;
 using SmogonTeamCrawler.Core.Util;
 using SmogonTeamCrawler.Tests.Fakes;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace SmogonTeamCrawler.Tests
@@ -220,6 +222,32 @@ namespace SmogonTeamCrawler.Tests
 
             Assert.That(teams, Has.Count.EqualTo(1));
             Assert.That(teams[0], Does.Contain("\n\nNinetales @ Focus Sash\n"));
+        }
+
+        [Test]
+        public void SetList_IsNoTeam()
+        {
+            // A set compendium: two Ninetales sets in a row, two Goodra sets in a row
+            var sets = TypedTeam
+                .Replace("Uri (Alakazam) (M) @ Focus Sash", SecondSet("Ninetales") + "Uri (Alakazam) (M) @ Focus Sash")
+                .Replace("Ditto @ Choice Scarf", SecondSet("Goodra") + "Ditto @ Choice Scarf");
+
+            Assert.That(PostTextTeams.FindSets(Post(sets), FixtureNames()), Has.Count.EqualTo(8));
+            Assert.That(PostTextTeams.Find(Post(sets), FixtureNames()), Is.Empty);
+        }
+
+        private static string SecondSet(string species) =>
+            $"{species} @ Choice Scarf<br />\nEVs: 252 SpA / 4 SpD / 252 Spe<br />\nTimid Nature<br />\n- Fire Blast<br />\n- Draco Meteor<br />\n<br />\n";
+
+        [Test]
+        public void SixSpeciesInAlphabeticalOrder_AreACutFromAList()
+        {
+            // Ninetales, Uri (Alakazam), Infernape, Bronzong, Goodra, Ditto
+            var sets = TypedTeamExport.ReplaceLineEndings("\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            string Html(IEnumerable<int> order) => Post(string.Join("<br />\n<br />\n", order.Select(i => sets[i].Replace("\n", "<br />\n"))));
+
+            Assert.That(PostTextTeams.Find(Html([0, 1, 2, 3, 4, 5]), FixtureNames()), Has.Count.EqualTo(1));
+            Assert.That(PostTextTeams.Find(Html([1, 3, 5, 4, 2, 0]), FixtureNames()), Is.Empty);
         }
 
         [TestCase("Ninetales @ Leftovers<br />\n- Flamethrower<br />\n- Sunny Day", TestName = "Moves without EVs, nature or ability")]
