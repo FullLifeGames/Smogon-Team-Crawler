@@ -25,6 +25,10 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public void Status(string url, HttpStatusCode statusCode) =>
             _routes[url] = () => new HttpResponseMessage(statusCode);
 
+        /// <summary>Requests for <paramref name="url"/> throw, like a page that cannot be loaded even after the retries.</summary>
+        public void Fail(string url, Func<Exception> error) =>
+            _routes[url] = () => throw error();
+
         /// <summary>Answers requests for <paramref name="url"/> only once <paramref name="release"/> completed.</summary>
         public void Hold(string url, Task release) => _holds[url] = release;
 

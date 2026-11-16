@@ -23,6 +23,14 @@ namespace SmogonTeamCrawler.Tests
     {
         private const string ForumPage = "<!DOCTYPE html>\n<html data-template=\"forum_list\">\n<body>\n<p>real page</p>\n</body>\n</html>";
 
+        /// <summary>
+        /// Larger than Chromium hands over to Playwright. It keeps text with a character beyond Latin-1 as UTF-16: without
+        /// the ✓, these 15 MB pass. Smogon has a thread page of 13 MB (14 million characters) that does not.
+        /// </summary>
+        private static readonly string HugePage = "<html><body><p>✓ " + new string('x', 15_000_000) + "</p><p>end</p></body></html>";
+
+        private readonly ConcurrentQueue<string> _userAgents = new();
+
         private HttpListener _listener = null!;
         private string _baseUrl = null!;
         private PlaywrightHttpMessageHandler _browser = null!;
@@ -101,6 +109,25 @@ namespace SmogonTeamCrawler.Tests
                 case "/page":
                     body = ForumPage;
                     break;
+                case "/huge":
+                    // Like Smogon: gzip, chunked, no length
+                    _userAgents.Enqueue(request.UserAgent ?? "");
+                    response.ContentType = contentType;
+                    response.AddHeader("Content-Encoding", "gzip");
+                    response.SendChunked = true;
+                    try
+                    {
+                        using (var gzip = new System.IO.Compression.GZipStream(response.OutputStream, System.IO.Compression.CompressionLevel.Fastest, leaveOpen: true))
+                        {
+                            gzip.Write(Encoding.UTF8.GetBytes(HugePage));
+                        }
+                        response.Close();
+                    }
+                    catch (HttpListenerException)
+                    {
+                        // The tab was closed while the body was on its way
+                    }
+                    return;
                 case "/umlauts":
                     body = "<html><body>Flabébé, Pokémon</body></html>";
                     break;
@@ -194,6 +221,18 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
             Assert.That(response.Content.Headers.ContentType?.MediaType, Is.EqualTo("text/html"));
             Assert.That(await response.Content.ReadAsStringAsync(), Is.EqualTo(ForumPage));
+        }
+
+        [Test]
+        public async Task HugePage_IsReturnedInFull_WithTheSameUserAgent()
+        {
+            _userAgents.Clear();
+
+            var html = await _client.GetStringAsync(_baseUrl + "huge");
+
+            Assert.That(html.Length, Is.EqualTo(HugePage.Length));
+            Assert.That(html, Does.EndWith("<p>end</p></body></html>"));
+            Assert.That(_userAgents, Has.All.EqualTo(Common.UserAgent));
         }
 
         [Test]

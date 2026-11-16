@@ -35,7 +35,8 @@ namespace SmogonTeamCrawler.Core.Util
     /// shared browser context, so cookies work like in a normal browser, and bot checks that solve themselves with a
     /// script (Smogon's proof-of-work gate) are passed.
     /// The response carries the HTML exactly as the server sent it, not the DOM after scripts changed it. The tab is
-    /// closed as soon as that HTML is in, so only a bot check gets to run its script; images are never loaded.
+    /// closed as soon as that HTML is in, so only a bot check gets to run its script; images are never loaded. A body too
+    /// large for the tab to hand over is requested once more through the context, with the same cookies.
     /// </summary>
     public sealed class PlaywrightHttpMessageHandler : HttpMessageHandler, IAsyncDisposable
     {
@@ -134,8 +135,14 @@ namespace SmogonTeamCrawler.Core.Util
                 {
                     // The page navigated on right when the body was read; that next document is already on its way.
                     newer = await documents.NewerThanAsync(current, null, Min(challengeDeadline - DateTime.UtcNow, TimeSpan.FromSeconds(5)), cancellationToken).ConfigureAwait(false);
-                    current = newer ?? throw new HttpRequestException($"The browser could not read the page {url}");
-                    continue;
+                    if (newer != null)
+                    {
+                        current = newer;
+                        continue;
+                    }
+                    // Chromium hands a body over only up to a size ("Request content was evicted from inspector cache"),
+                    // which Smogon's largest thread pages exceed (13 MB). The page is requested once more, past the tab.
+                    return await FetchAsync(page.Context, request, url, cancellationToken).ConfigureAwait(false);
                 }
 
                 if (!IsChallenge(current, body))
@@ -228,17 +235,38 @@ namespace SmogonTeamCrawler.Core.Util
             "content-encoding", "content-length", "transfer-encoding",
         };
 
-        private static async Task<HttpResponseMessage> ToHttpResponseAsync(HttpRequestMessage request, IResponse response, byte[] body)
+        /// <summary>
+        /// The page through the browser context's request API: with the cookies of the tabs (a bot check passed there counts)
+        /// and the same User-Agent, without the tab's limit on the body. No script runs: a bot check is returned as it is.
+        /// </summary>
+        private static async Task<HttpResponseMessage> FetchAsync(IBrowserContext context, HttpRequestMessage request, string url, CancellationToken cancellationToken)
+        {
+            var response = await context.APIRequest.GetAsync(url, new APIRequestContextOptions { Timeout = 0 }).WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var body = await response.BodyAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+                return ToHttpResponse(request, response.Status, response.StatusText, response.HeadersArray, body);
+            }
+            finally
+            {
+                await response.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+
+        private static async Task<HttpResponseMessage> ToHttpResponseAsync(HttpRequestMessage request, IResponse response, byte[] body) =>
+            ToHttpResponse(request, response.Status, response.StatusText, await response.HeadersArrayAsync().ConfigureAwait(false), body);
+
+        private static HttpResponseMessage ToHttpResponse(HttpRequestMessage request, int statusCode, string statusText, IEnumerable<Header> headers, byte[] body)
         {
             // The browser revalidated its cached copy. The caller did not ask for a conditional request, so it gets the page.
-            var status = response.Status == 304 ? HttpStatusCode.OK : (HttpStatusCode)response.Status;
+            var status = statusCode == 304 ? HttpStatusCode.OK : (HttpStatusCode)statusCode;
             var message = new HttpResponseMessage(status)
             {
                 RequestMessage = request,
-                ReasonPhrase = status == HttpStatusCode.OK ? "OK" : response.StatusText,
+                ReasonPhrase = status == HttpStatusCode.OK ? "OK" : statusText,
                 Content = new ByteArrayContent(body),
             };
-            foreach (var header in await response.HeadersArrayAsync().ConfigureAwait(false))
+            foreach (var header in headers)
             {
                 if (TransferHeaders.Contains(header.Name))
                 {

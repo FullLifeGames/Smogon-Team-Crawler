@@ -246,6 +246,50 @@ namespace SmogonTeamCrawler.Tests
             }));
         }
 
+        private void FailToLoad(string url, string how)
+        {
+            if (how == "server error")
+            {
+                _http.Status(url, System.Net.HttpStatusCode.InternalServerError);
+            }
+            else
+            {
+                _http.Fail(url, () => how == "timeout"
+                    ? new TaskCanceledException("The operation was canceled.")
+                    : new HttpRequestException("The browser could not read the page " + url));
+            }
+        }
+
+        [TestCase("server error")]
+        [TestCase("browser")]
+        [TestCase("timeout")]
+        public async Task ThreadPageThatCannotBeLoaded_SkipsOnlyThatThread_AndRetriesItNextRun(string how)
+        {
+            var teams = await Crawl(afterPublish: () => FailToLoad(_c.Url, how));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2" }));
+
+            teams = await Crawl();
+            Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl, _c.Url }));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+        }
+
+        [Test]
+        public void ManyThreadPagesThatCannotBeLoadedInARow_StopTheCrawl()
+        {
+            for (var id = 100; id < 105; id++)
+            {
+                _forum.AddThread(id).AddPage(new FakePost(id * 10, Old.AddDays(1)));
+            }
+
+            Assert.ThrowsAsync<HttpRequestException>(() => Crawl(afterPublish: () =>
+            {
+                for (var id = 100; id < 105; id++)
+                {
+                    FailToLoad(SmogonHtml.ThreadUrl(id), "browser");
+                }
+            }));
+        }
+
         [Test]
         public async Task FullRefresh_ReadsEverythingAgain()
         {

@@ -25,7 +25,7 @@ namespace SmogonTeamCrawler.Core.Collector
     /// </summary>
     public partial class TeamCollector : ICollector
     {
-        private const int MaxUnexpectedThreadPagesInARow = 5;
+        private const int MaxFailedThreadPagesInARow = 5;
 
         /// <summary>
         /// Pages that may wait for their pastes while the next pages are read. About a minute of reading ahead, enough for
@@ -40,7 +40,7 @@ namespace SmogonTeamCrawler.Core.Collector
         private readonly ConcurrentDictionary<string, Lazy<Task<string>>> _pastesInFlight = new();
         private readonly Lazy<Task<ShowdownNames>> _showdownNames;
         private readonly PostSearch _postSearch;
-        private int _unexpectedThreadPagesInARow;
+        private int _failedThreadPagesInARow;
         private bool _searchUnavailable;
 
         public TeamCollector() : this(null)
@@ -655,7 +655,11 @@ namespace SmogonTeamCrawler.Core.Collector
             return new PagesRead(ThreadUpdate.Updated, numberOfPages, analyses, missingPosts);
         }
 
-        /// <summary>A thread page, or why the thread is skipped: gone (404, 403, 410) or not a thread page.</summary>
+        /// <summary>
+        /// A thread page, or why the thread is skipped: gone (404, 403, 410), not to be loaded or not a thread page.
+        /// A single thread that fails is skipped and retried next run; many in a row mean the markup changed or the site
+        /// is down, and the crawl stops.
+        /// </summary>
         private async Task<(string? Site, ThreadUpdate? Failure)> GetThreadPageAsync(string pageUrl)
         {
             string site;
@@ -668,15 +672,24 @@ namespace SmogonTeamCrawler.Core.Collector
                 Console.WriteLine($"Skipping {pageUrl}: HTTP {(int)e.StatusCode!}");
                 return (null, ThreadUpdate.Gone);
             }
+            catch (Exception e) when (e is HttpRequestException or OperationCanceledException)
+            {
+                // Still failing after the retries: server error, connection, timeout (requests are never cancelled otherwise)
+                if (++_failedThreadPagesInARow >= MaxFailedThreadPagesInARow)
+                {
+                    throw;
+                }
+                Console.WriteLine($"Skipping thread, tried again next run: {pageUrl} could not be loaded ({e.Message})");
+                return (null, ThreadUpdate.Failed);
+            }
             try
             {
                 SmogonPages.EnsureThreadPage(site, pageUrl);
-                _unexpectedThreadPagesInARow = 0;
+                _failedThreadPagesInARow = 0;
             }
             catch (UnexpectedPageException e)
             {
-                // A single odd thread is skipped and retried next run; many in a row mean the markup changed, and the crawl stops.
-                if (++_unexpectedThreadPagesInARow >= MaxUnexpectedThreadPagesInARow)
+                if (++_failedThreadPagesInARow >= MaxFailedThreadPagesInARow)
                 {
                     throw;
                 }
