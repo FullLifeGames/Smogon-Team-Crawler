@@ -316,6 +316,20 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public async Task ThreadPageWhosePostsCannotBeRead_IsSkipped_AndKeepsItsTeams()
+        {
+            await Crawl();
+            _b.Pages[1].Add(new FakePost(23, Old.AddHours(6), "B3"));
+
+            // The parser would find no post ends and store page 2 without teams.
+            var teams = await Crawl(afterPublish: () => _http.Html(SmogonHtml.PageUrl(_b.Url, 2), SmogonHtml.ThreadPage(_b, 2).Replace("\n\t</article>", "\n</article>")));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+
+            teams = await Crawl();
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "B3", "C1" }));
+        }
+
+        [Test]
         public void ManyUnexpectedThreadPagesInARow_StopTheCrawl()
         {
             for (var id = 100; id < 105; id++)

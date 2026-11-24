@@ -27,6 +27,23 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(SmogonPages.GetNodeId(html), Is.EqualTo(726));
         }
 
+        [TestCase("data-author=\"")]
+        [TestCase("id=\"js-post-")]
+        [TestCase(" title=\"")]
+        [TestCase("<div class=\"bbWrapper\">")]
+        [TestCase("\n\t</article>")]
+        public void EnsureThreadPage_WantsWhatTheParserReadsFromEveryPost(string marker)
+        {
+            const string url = "https://www.smogon.com/forums/threads/test.1/";
+            var html = SmogonHtml.ThreadPage(new FakeForum("https://www.smogon.com/forums/forums/test.1/").AddThread(1)
+                .AddPage(new FakePost(11, new System.DateTime(2026, 11, 24, 12, 0, 0)), new FakePost(12, new System.DateTime(2026, 11, 24, 13, 0, 0))), 1);
+            SmogonPages.EnsureThreadPage(html, url);
+
+            html = html.Remove(html.LastIndexOf(marker), marker.Length);
+
+            Assert.That(() => SmogonPages.EnsureThreadPage(html, url), Throws.TypeOf<UnexpectedPageException>().With.Message.Contains("post 2 of 2"));
+        }
+
         [Test]
         public void IsBotCheck_KnowsTheGateCookieOf2026_11_24_ButNotAPostAboutIt()
         {

@@ -70,11 +70,36 @@ namespace SmogonTeamCrawler.Core.Util
             {
                 throw new SmogonAccessBlockedException(url);
             }
-            if (!PostStartRegex().IsMatch(html))
+            var posts = PostStartRegex().Matches(html);
+            if (posts.Count == 0)
             {
                 throw new UnexpectedPageException(url, "the page contains no posts");
             }
+            // A page the team parser cannot read in full is skipped and its stored teams are kept, not stored half read.
+            for (var i = 0; i < posts.Count; i++)
+            {
+                var next = i + 1 < posts.Count ? posts[i + 1].Index : html.Length;
+                var end = html.IndexOf("\n\t</article>", posts[i].Index, next - posts[i].Index, StringComparison.Ordinal);
+                var post = end < 0 ? null : html[posts[i].Index..end];
+                var missing = post == null ? "its end (a line \"\\t</article>\")"
+                    : !post.Contains("data-author=\"", StringComparison.Ordinal) ? "data-author"
+                    : !PostIdRegex().IsMatch(post) ? "id=\"js-post-N\""
+                    : !PostDateRegex().IsMatch(post) ? "a date in its message-attribution--split header"
+                    : !post.Contains("<div class=\"bbWrapper\">", StringComparison.Ordinal) ? "its text (bbWrapper)"
+                    : null;
+                if (missing != null)
+                {
+                    throw new UnexpectedPageException(url, $"post {i + 1} of {posts.Count} has no {missing}");
+                }
+            }
         }
+
+        [GeneratedRegex("id=\"js-post-\\d+\"")]
+        private static partial Regex PostIdRegex();
+
+        // TeamCollector reads the date from the title, "Mar 22, 2021 at 12:15 AM"
+        [GeneratedRegex("<header class=\"message-attribution message-attribution--split\">[\\s\\S]*?\\btitle=\"[A-Z][a-z]{2} \\d{1,2}, \\d{4} at \\d{1,2}:\\d{2} [AP]M\"")]
+        private static partial Regex PostDateRegex();
 
         [GeneratedRegex("<article class=\"message [^\"]*\\bjs-post\\b")]
         private static partial Regex PostStartRegex();
