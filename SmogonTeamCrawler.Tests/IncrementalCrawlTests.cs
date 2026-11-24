@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Tests
@@ -92,6 +93,28 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(b2.URL, Is.EqualTo(_b.Url + "page-2#post-22"));
             Assert.That(b2.PostedBy, Is.EqualTo("Tester"));
             Assert.That(b2.PostDate, Is.EqualTo(Old.AddHours(4)));
+        }
+
+        [Test]
+        public async Task Posts_AreRead_InTheMarkupUntil2026_11_23()
+        {
+            var teams = await Crawl(afterPublish: () =>
+            {
+                foreach (var thread in _forum.Threads)
+                {
+                    for (var page = 1; page <= thread.Pages.Count; page++)
+                    {
+                        var html = SmogonHtml.ThreadPage(thread, page)
+                            .Replace("<details><summary title=\"Click to reveal or hide spoiler\">Spoiler</summary><div>", "<div class=\"bbCodeBlock bbCodeBlock--spoiler\">\n<div class=\"bbCodeBlock-content\">")
+                            .Replace("</div></details>", "</div>\n</div>");
+                        html = Regex.Replace(html, "\tid=\"js-post-(\\d+)\"", "\tdata-content=\"post-$1\"\n\t\tid=\"js-post-$1\"");
+                        _http.Html(SmogonHtml.PageUrl(thread.Url, page), html);
+                    }
+                }
+            });
+
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+            Assert.That(teams.Single(t => t.TeamString.StartsWith("MonB2")).URL, Is.EqualTo(_b.Url + "page-2#post-22"));
         }
 
         [Test]

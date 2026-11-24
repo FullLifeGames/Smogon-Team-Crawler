@@ -1148,11 +1148,13 @@ namespace SmogonTeamCrawler.Core.Collector
                 }
                 lineDataHandler.PostLikes = likes;
             }
-            else if (line.Contains("<div class=\"bbCodeBlock-content\">"))
+            else if (line.Contains("<div class=\"bbCodeBlock-content\">") || (line.Contains("</summary><div>") && !line.Contains("</details>")))
             {
+                // Since 2026-11-24 a spoiler is <details><summary title="…">Title</summary><div>…</div></details>
                 lineDataHandler.BlockStarted = true;
                 lineDataHandler.BlockText = "";
-                var blockStart = line.IndexOf("<div class=\"bbCodeBlock-content\">") + "<div class=\"bbCodeBlock-content\">".Length;
+                var marker = line.Contains("</summary><div>") ? "</summary><div>" : "<div class=\"bbCodeBlock-content\">";
+                var blockStart = line.IndexOf(marker) + marker.Length;
                 var temp = line[blockStart..].Trim();
                 if (temp != "<br />" && temp != "")
                 {
@@ -1161,9 +1163,14 @@ namespace SmogonTeamCrawler.Core.Collector
                     lineDataHandler.BlockTextBuilder.Append(temp).Append('\n');
                 }
             }
-            else if (lineDataHandler.BlockStarted && ((line.Trim().Replace("\t", "").Contains("</div>") && lineDataHandler.LastLine.Trim().Replace("\t", "").Contains("</div>")) || line.Contains("</div></div>")))
+            else if (lineDataHandler.BlockStarted && (line.Contains("</details>") || (line.Trim().Replace("\t", "").Contains("</div>") && lineDataHandler.LastLine.Trim().Replace("\t", "").Contains("</div>")) || line.Contains("</div></div>")))
             {
                 lineDataHandler.BlockStarted = false;
+                if (line.Contains("</details>"))
+                {
+                    // Its last line: "- Scald</div></details>"
+                    (lineDataHandler.BlockTextBuilder ??= new StringBuilder()).Append(line[..line.IndexOf("</details>")]).Append('\n');
+                }
                 var blockTextStr = lineDataHandler.BlockTextBuilder?.ToString() ?? "";
                 blockTextStr = blockTextStr.Replace("\t", "").Replace("<br />", "").Replace("</div>", "");
                 if (IsTeam(blockTextStr))

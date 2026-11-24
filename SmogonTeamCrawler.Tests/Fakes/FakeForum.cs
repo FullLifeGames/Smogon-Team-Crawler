@@ -359,9 +359,9 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 html.Append($"<div class=\"bbWrapper\">{post.Text ?? "Post text"}<br />\n");
                 if (post.TeamTag != null && post.PasteUrl == null)
                 {
-                    html.Append("<div class=\"bbCodeBlock bbCodeBlock--spoiler\">\n<div class=\"bbCodeBlock-content\">\n");
-                    html.Append(TeamText(post.TeamTag, "<br />"));
-                    html.Append("</div>\n</div>\n");
+                    var team = TeamText(post.TeamTag, "<br />");
+                    html.Append("<details><summary title=\"Click to reveal or hide spoiler\">Spoiler</summary><div>");
+                    html.Append(team[..team.LastIndexOf("<br />\n<br />")]).Append("</div></details>\n");
                 }
                 if (post.PasteUrl != null)
                 {
