@@ -7,6 +7,7 @@ using SmogonTeamCrawler.Tests.Fakes;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Tests
@@ -30,7 +31,7 @@ namespace SmogonTeamCrawler.Tests
         private static string Node(int id, string path, string name, string subForums = "") =>
             $"<div class=\"node node--id{id} node--depth2 node--unread\">\n"
             + "\t<div class=\"node-body\">\n\t\t<div class=\"node-main js-nodeMain\">\n\t\t\t<h3 class=\"node-title\">\n"
-            + $"\t\t\t\t<a href=\"/forums/forums/{path}/\" data-xf-init=\"element-tooltip\" data-shortcut=\"node-description\">{name}</a>\n"
+            + $"\t\t\t\t<element-tooltip element=\"#node-description-{id}\" extra-class=\"tooltip--basic tooltip--description\" placement=\"right\" maintain=\"true\"><a href=\"/forums/forums/{path}/\">{name}</a></element-tooltip>\n"
             + "\t\t\t</h3>\n"
             + (subForums.Length > 0
                 ? "\t\t\t<div class=\"node-subNodesFlat\">\n\t\t\t\t<span class=\"node-subNodesLabel\">Sub-forums:</span>\n\t\t\t\t<ol class=\"node-subNodeFlatList\">\n" + subForums + "\t\t\t\t</ol>\n\t\t\t</div>\n"
@@ -139,6 +140,19 @@ namespace SmogonTeamCrawler.Tests
 
             var result = await Scan(index, Archive, Gen8Page);
 
+            Assert.That(result.TierToRegularLinks, Is.EquivalentTo(RegularForums));
+            Assert.That(result.TierToRmtLinks, Has.Count.EqualTo(4));
+        }
+
+        [TestCase("<a href=\"$1\" data-xf-init=\"element-tooltip\" data-shortcut=\"node-description\">$2</a>")] // until 2026-11-23
+        [TestCase("<a href=\"$1\">$2</a>")] // a node without description
+        public async Task Scan_WithOtherNodeTitles_FindsTheSameForums(string title)
+        {
+            var index = Regex.Replace(Index, "<element-tooltip [^>]*><a href=\"([^\"]+)\">(.*?)</a></element-tooltip>", title);
+
+            var result = await Scan(index, Archive, Gen8Page);
+
+            Assert.That(index, Does.Not.Contain("<element-tooltip"));
             Assert.That(result.TierToRegularLinks, Is.EquivalentTo(RegularForums));
             Assert.That(result.TierToRmtLinks, Has.Count.EqualTo(4));
         }
