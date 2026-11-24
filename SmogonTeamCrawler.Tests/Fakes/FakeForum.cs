@@ -307,7 +307,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 {
                     html.Append($"\t\t\t\t<a href=\"{forumPath}?prefix_id=1\" class=\"labelLink\" rel=\"nofollow\"><span class=\"label label--blue\" dir=\"auto\">{thread.Prefix}</span></a>\n");
                 }
-                html.Append($"\t\t\t\t<a href=\"{threadPath}\" class=\"\" data-tp-primary=\"on\" data-xf-init=\"preview-tooltip\" data-preview-url=\"{threadPath}preview\"\n\t\t\t\t\t>\n\t\t\t\t\tThread {thread.Id}\n\t\t\t\t</a>\n");
+                html.Append($"\t\t\t\t<preview-tooltip preview-url=\"{threadPath}preview\"><a href=\"{threadPath}\" class=\"\" data-tp-primary=\"on\"\n\t\t\t\t\t>\n\t\t\t\t\tThread {thread.Id}\n\t\t\t\t</a></preview-tooltip>\n");
                 html.Append("\t\t\t</div>\n\t\t\t<div class=\"structItem-minor\">\n");
                 if (thread.Pages.Count > 1)
                 {

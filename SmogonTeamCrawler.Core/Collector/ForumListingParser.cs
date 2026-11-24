@@ -11,8 +11,9 @@ namespace SmogonTeamCrawler.Core.Collector
     {
         private const string ItemStart = "<div class=\"structItem structItem--thread";
 
-        // XenForo leaves out the slug (".../threads/123/") when a title has no URL-safe characters.
-        [GeneratedRegex("data-preview-url=\"(/forums/threads/(?:[^\"/]*?\\.)?(\\d+)/)preview\"")]
+        // XenForo leaves out the slug (".../threads/123/") when a title has no URL-safe characters. Since 2026-11-24 a
+        // <preview-tooltip preview-url="..."> wraps the link, which had data-preview-url before.
+        [GeneratedRegex("(?:data-)?preview-url=\"(/forums/threads/(?:[^\"/]*?\\.)?(\\d+)/)preview\"")]
         private static partial Regex PreviewUrlRegex();
 
         [GeneratedRegex("<div class=\"structItem-title\">(.*?)</div>", RegexOptions.Singleline)]

@@ -219,6 +219,20 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public void Parse_ReadsThreadLinksUntil2026_11_23()
+        {
+            var forum = new FakeForum("https://www.smogon.com/forums/forums/sv-ou-teams.748/");
+            forum.AddThread(11).AddPage(new FakePost(2, new System.DateTime(2026, 11, 8, 13, 33, 0)));
+            const string path = "/forums/threads/thread-11.11/";
+            var html = SmogonHtml.Listing("/forums/forums/sv-ou-teams.748/", 1, 1, forum.Threads, forum.NodeId)
+                .Replace($"<preview-tooltip preview-url=\"{path}preview\"><a href=\"{path}\" class=\"\"", $"<a href=\"{path}\" class=\"\" data-xf-init=\"preview-tooltip\" data-preview-url=\"{path}preview\"")
+                .Replace("</a></preview-tooltip>", "</a>");
+
+            Assert.That(html, Does.Not.Contain("<preview-tooltip"));
+            Assert.That(ForumListingParser.Parse(html).Select(item => item.Url), Is.EqualTo(new[] { SmogonHtml.ThreadUrl(11) }));
+        }
+
+        [Test]
         public void GetNumberOfPages_WithoutPageNav_IsOne()
         {
             Assert.That(SmogonPages.GetNumberOfPages("<html data-template=\"forum_view\"></html>"), Is.EqualTo(1));
