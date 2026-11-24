@@ -178,9 +178,9 @@ namespace SmogonTeamCrawler.Tests
         {
             // Unix timestamps: Smogon drops dates such as 2026-11-10 from the search (since 2026-11-16)
             Assert.That(PostSearch.Url("pokepast.es | \"EVs Nature\"", new long[] { 726, 748 }, new DateTime(2026, 11, 10, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 11, 12)),
-                Is.EqualTo("https://www.smogon.com/forums/search/1/?q=pokepast.es%20%7C%20%22EVs%20Nature%22&t=post&o=date&c[newer_than]=1794268800&c[older_than]=1794441600&c[nodes][0]=726&c[nodes][1]=748"));
+                Is.EqualTo("https://www.smogon.com/forums/search/search?keywords=pokepast.es%20%7C%20%22EVs%20Nature%22&search_type=post&order=date&c[newer_than]=1794268800&c[older_than]=1794441600&c[nodes][0]=726&c[nodes][1]=748"));
             Assert.That(PostSearch.Url("psim.us", new long[] { 670 }, null, null),
-                Is.EqualTo("https://www.smogon.com/forums/search/1/?q=psim.us&t=post&o=date&c[nodes][0]=670"));
+                Is.EqualTo("https://www.smogon.com/forums/search/search?keywords=psim.us&search_type=post&order=date&c[nodes][0]=670"));
         }
 
         [Test]

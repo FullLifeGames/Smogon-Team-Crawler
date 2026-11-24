@@ -127,7 +127,11 @@ namespace SmogonTeamCrawler.Tests.Fakes
             var query = url[(url.IndexOf('?') + 1)..].Split('&')
                 .Select(part => part.Split('=', 2))
                 .ToDictionary(kv => Uri.UnescapeDataString(kv[0]), kv => kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : "");
-            var keywords = query.GetValueOrDefault("q") ?? "";
+            if (url.Contains("/search/1/?q="))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound); // no longer starts a search since 2026-11-24
+            }
+            var keywords = query.GetValueOrDefault("keywords") ?? query.GetValueOrDefault("q") ?? "";
             // Unix timestamps; like Smogon, dates in another form are dropped
             var newerThan = Timestamp(query, "c[newer_than]") ?? DateTime.MinValue;
             var olderThan = Timestamp(query, "c[older_than]") ?? DateTime.MaxValue;
