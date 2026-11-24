@@ -39,7 +39,17 @@ namespace SmogonTeamCrawler.Core.Util
         public static string PageUrl(string baseUrl, int page) => page <= 1 ? baseUrl : baseUrl + "page-" + page;
 
         public static bool IsBotCheck(string html) =>
-            html.Contains("xf_smogon_gate") || (html.Contains("Checking your browser") && !html.Contains("data-template=\""));
+            html.Contains("xf_smogon_gate") || ((html.Contains("forum_gate=") || html.Contains("Checking your browser")) && !HasTemplate(html));
+
+        /// <summary>
+        /// Whether the html tag names the XenForo template (any if null): data-template="forum_list" until 2026-11-23,
+        /// the class template-forum_list since 2026-11-24.
+        /// </summary>
+        public static bool HasTemplate(string html, string? template = null)
+        {
+            var name = template == null ? "[^\"\\s]+" : Regex.Escape(template);
+            return Regex.IsMatch(html, "<html\\b[^>]*?\\s(?:data-template=\"" + name + "\"|class=\"(?:[^\"]*\\s)?template-" + name + "[\"\\s])");
+        }
 
         /// <summary>Forum index, category and forum listing pages carry the XenForo template name on the html tag.</summary>
         public static void EnsureTemplate(string html, string url, string template)
@@ -48,7 +58,7 @@ namespace SmogonTeamCrawler.Core.Util
             {
                 throw new SmogonAccessBlockedException(url);
             }
-            if (!html.Contains("data-template=\"" + template + "\""))
+            if (!HasTemplate(html, template))
             {
                 throw new UnexpectedPageException(url, "expected the XenForo template '" + template + "'");
             }
@@ -101,10 +111,15 @@ namespace SmogonTeamCrawler.Core.Util
         [GeneratedRegex("data-container-key=\"node-(\\d+)\"")]
         private static partial Regex ContainerKeyRegex();
 
-        /// <summary>The node ID of the forum a listing page belongs to, from its html tag; null if it has none.</summary>
+        // Since 2026-11-24 only the quick search's "This forum" option names the node: {"search_type":"post","c":{"nodes":[525],...}}
+        [GeneratedRegex("&quot;c&quot;:\\{&quot;nodes&quot;:\\[(\\d+)\\]")]
+        private static partial Regex SearchNodeRegex();
+
+        /// <summary>The node ID of the forum a listing page belongs to, from its html tag or quick search; null if it has none.</summary>
         public static long? GetNodeId(string listingHtml)
         {
             var id = ContainerKeyRegex().Match(listingHtml);
+            id = id.Success ? id : SearchNodeRegex().Match(listingHtml);
             return id.Success ? long.Parse(id.Groups[1].Value) : null;
         }
 

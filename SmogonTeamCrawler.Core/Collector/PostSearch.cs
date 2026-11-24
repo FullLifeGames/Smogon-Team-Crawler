@@ -48,10 +48,11 @@ namespace SmogonTeamCrawler.Core.Collector
         /// The search for posts matching <paramref name="query"/> in the forums <paramref name="nodeIds"/> (without their
         /// sub-forums), from <paramref name="since"/> on and before <paramref name="before"/> (UTC), newest first. The query
         /// is Smogon's syntax: words are all required, "|" is or, quotes make a phrase, parentheses group. The times go as
-        /// Unix timestamps, which Smogon applies to the second; dates such as 2026-11-15 it drops without a word.
+        /// Unix timestamps, which Smogon applies to the second; dates such as 2026-11-15 it drops without a word. Smogon
+        /// redirects to the results; since 2026-11-24 a results URL (".../search/1/?q=...") no longer starts a search.
         /// </summary>
         public static string Url(string query, IEnumerable<long> nodeIds, DateTime? since, DateTime? before) =>
-            Common.SMOGON_FORUMS_URL + "search/1/?q=" + Uri.EscapeDataString(query) + "&t=post&o=date"
+            Common.SMOGON_FORUMS_URL + "search/search?keywords=" + Uri.EscapeDataString(query) + "&search_type=post&order=date"
             + (since is DateTime start ? "&c[newer_than]=" + UnixSeconds(start) : "")
             + (before is DateTime end ? "&c[older_than]=" + UnixSeconds(end) : "")
             + string.Concat(nodeIds.Select((id, index) => $"&c[nodes][{index}]={id}"));
@@ -174,7 +175,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 {
                     throw new SmogonAccessBlockedException(url);
                 }
-                if (html.Contains("data-template=\"search_results\""))
+                if (SmogonPages.HasTemplate(html, "search_results"))
                 {
                     return html;
                 }

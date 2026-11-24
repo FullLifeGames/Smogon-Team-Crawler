@@ -117,7 +117,7 @@ namespace SmogonTeamCrawler.Tests
         /// <summary>The first result page of each search for <paramref name="query"/>, without the pages after it.</summary>
         private List<string> Searches(string query) => _http.Requests
             .Select(Uri.UnescapeDataString)
-            .Where(url => url.StartsWith("https://www.smogon.com/forums/search/1/?q=" + query + "&"))
+            .Where(url => url.StartsWith("https://www.smogon.com/forums/search/search?keywords=" + query + "&"))
             .ToList();
 
         private List<string> OtherRequests() => _http.Requests.Where(url => !url.Contains("/forums/search/")).ToList();

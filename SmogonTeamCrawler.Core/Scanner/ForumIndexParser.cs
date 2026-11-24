@@ -14,7 +14,8 @@ namespace SmogonTeamCrawler.Core.Scanner
     {
         private const string ForumPath = "/forums/forums/";
 
-        [GeneratedRegex("<a href=\"(?<href>[^\"]+)\"(?<attrs>[^>]*)>(?<inner>.*?)</a>", RegexOptions.Singleline)]
+        // "nodeTitle": the link of a node's title; since 2026-11-24 it may sit in an <element-tooltip>.
+        [GeneratedRegex("(?<nodeTitle><h3 class=\"node-title\">\\s*(?:<element-tooltip\\b[^>]*>\\s*)?)?<a href=\"(?<href>[^\"]+)\"(?<attrs>[^>]*)>(?<inner>.*?)</a>", RegexOptions.Singleline)]
         private static partial Regex AnchorRegex();
 
         [GeneratedRegex("<ol\\b|</ol>|<a href=\"(?<href>/forums/forums/[^\"]+)\" class=\"subNodeLink[^\"]*\">(?<inner>.*?)</a>", RegexOptions.Singleline)]
@@ -73,7 +74,7 @@ namespace SmogonTeamCrawler.Core.Scanner
         private static (bool IsNode, bool IsSubForum) Kind(Match anchor)
         {
             var attrs = anchor.Groups["attrs"].Value;
-            return (attrs.Contains("data-shortcut=\"node-description\""),
+            return (attrs.Contains("data-shortcut=\"node-description\"") || anchor.Groups["nodeTitle"].Success,
                 attrs.Contains("class=\"subNodeLink") && anchor.Groups["href"].Value.StartsWith(ForumPath));
         }
 

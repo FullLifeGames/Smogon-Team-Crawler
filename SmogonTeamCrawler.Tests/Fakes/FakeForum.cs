@@ -33,7 +33,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
         }
     }
 
-    /// <summary>A forum with threads that renders listing and thread pages the way Smogon (XenForo 2.3) does.</summary>
+    /// <summary>A forum with threads that renders listing and thread pages the way Smogon does since 2026-11-24.</summary>
     internal class FakeForum
     {
         /// <param name="nodeId">The node ID, for a URL without one (".../forums/gen1/").</param>
@@ -127,7 +127,11 @@ namespace SmogonTeamCrawler.Tests.Fakes
             var query = url[(url.IndexOf('?') + 1)..].Split('&')
                 .Select(part => part.Split('=', 2))
                 .ToDictionary(kv => Uri.UnescapeDataString(kv[0]), kv => kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : "");
-            var keywords = query.GetValueOrDefault("q") ?? "";
+            if (url.Contains("/search/1/?q="))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound); // no longer starts a search since 2026-11-24
+            }
+            var keywords = query.GetValueOrDefault("keywords") ?? query.GetValueOrDefault("q") ?? "";
             // Unix timestamps; like Smogon, dates in another form are dropped
             var newerThan = Timestamp(query, "c[newer_than]") ?? DateTime.MinValue;
             var olderThan = Timestamp(query, "c[older_than]") ?? DateTime.MaxValue;
@@ -290,7 +294,8 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public static string Listing(string forumPath, int page, int pages, IEnumerable<FakeThread> threads, long nodeId)
         {
             var html = new StringBuilder();
-            html.Append($"<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"forum_view\"\n\tdata-container-key=\"node-{nodeId}\"\n\tdata-content-key=\"forum-{nodeId}\" data-logged-in=\"false\">\n<body>\n");
+            html.Append($"<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\t\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-forum_view\">\n<body>\n");
+            html.Append($"<option value=\"{{&quot;search_type&quot;:&quot;post&quot;,&quot;c&quot;:{{&quot;nodes&quot;:[{nodeId}],&quot;child_nodes&quot;:1}}}}\">This forum</option>\n");
             html.Append(PageNav(forumPath, pages));
             html.Append("<div class=\"structItemContainer\">\n");
             foreach (var thread in threads)
@@ -307,7 +312,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 {
                     html.Append($"\t\t\t\t<a href=\"{forumPath}?prefix_id=1\" class=\"labelLink\" rel=\"nofollow\"><span class=\"label label--blue\" dir=\"auto\">{thread.Prefix}</span></a>\n");
                 }
-                html.Append($"\t\t\t\t<a href=\"{threadPath}\" class=\"\" data-tp-primary=\"on\" data-xf-init=\"preview-tooltip\" data-preview-url=\"{threadPath}preview\"\n\t\t\t\t\t>\n\t\t\t\t\tThread {thread.Id}\n\t\t\t\t</a>\n");
+                html.Append($"\t\t\t\t<preview-tooltip preview-url=\"{threadPath}preview\"><a href=\"{threadPath}\" class=\"\" data-tp-primary=\"on\"\n\t\t\t\t\t>\n\t\t\t\t\tThread {thread.Id}\n\t\t\t\t</a></preview-tooltip>\n");
                 html.Append("\t\t\t</div>\n\t\t\t<div class=\"structItem-minor\">\n");
                 if (thread.Pages.Count > 1)
                 {
@@ -337,14 +342,13 @@ namespace SmogonTeamCrawler.Tests.Fakes
         {
             var threadPath = new Uri(thread.Url).AbsolutePath;
             var html = new StringBuilder();
-            html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"thread_view\" data-logged-in=\"false\">\n<body>\n");
+            html.Append("<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-thread_view\">\n<body>\n");
             html.Append(PageNav(threadPath, thread.Pages.Count, page));
             html.Append("<div class=\"block-body js-replyNewMessageContainer\">\n");
             foreach (var post in thread.Pages[page - 1])
             {
                 html.Append(postTag + "\n");
                 html.Append($"\t\tdata-author=\"{post.Author}\"\n");
-                html.Append($"\t\tdata-content=\"post-{post.Id}\"\n");
                 html.Append($"\t\tid=\"js-post-{post.Id}\">\n");
                 html.Append("\t<header class=\"message-attribution message-attribution--split\">\n");
                 html.Append("\t\t<ul class=\"message-attribution-main listInline \">\n\t\t\t<li class=\"u-concealed\">\n");
@@ -355,9 +359,9 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 html.Append($"<div class=\"bbWrapper\">{post.Text ?? "Post text"}<br />\n");
                 if (post.TeamTag != null && post.PasteUrl == null)
                 {
-                    html.Append("<div class=\"bbCodeBlock bbCodeBlock--spoiler\">\n<div class=\"bbCodeBlock-content\">\n");
-                    html.Append(TeamText(post.TeamTag, "<br />"));
-                    html.Append("</div>\n</div>\n");
+                    var team = TeamText(post.TeamTag, "<br />");
+                    html.Append("<details><summary title=\"Click to reveal or hide spoiler\">Spoiler</summary><div>");
+                    html.Append(team[..team.LastIndexOf("<br />\n<br />")]).Append("</div></details>\n");
                 }
                 if (post.PasteUrl != null)
                 {
@@ -374,7 +378,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public static string SearchResults(IEnumerable<FakeSearchResult> results, string? nextHref)
         {
             var html = new StringBuilder();
-            html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"search_results\" data-logged-in=\"false\">\n<body>\n");
+            html.Append("<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-search_results\">\n<body>\n");
             html.Append("<div class=\"block-container\">\n\t<ol class=\"block-body\">\n");
             foreach (var result in results)
             {

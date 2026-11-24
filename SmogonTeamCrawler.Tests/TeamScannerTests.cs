@@ -7,6 +7,7 @@ using SmogonTeamCrawler.Tests.Fakes;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Tests
@@ -30,7 +31,7 @@ namespace SmogonTeamCrawler.Tests
         private static string Node(int id, string path, string name, string subForums = "") =>
             $"<div class=\"node node--id{id} node--depth2 node--unread\">\n"
             + "\t<div class=\"node-body\">\n\t\t<div class=\"node-main js-nodeMain\">\n\t\t\t<h3 class=\"node-title\">\n"
-            + $"\t\t\t\t<a href=\"/forums/forums/{path}/\" data-xf-init=\"element-tooltip\" data-shortcut=\"node-description\">{name}</a>\n"
+            + $"\t\t\t\t<element-tooltip element=\"#node-description-{id}\" extra-class=\"tooltip--basic tooltip--description\" placement=\"right\" maintain=\"true\"><a href=\"/forums/forums/{path}/\">{name}</a></element-tooltip>\n"
             + "\t\t\t</h3>\n"
             + (subForums.Length > 0
                 ? "\t\t\t<div class=\"node-subNodesFlat\">\n\t\t\t\t<span class=\"node-subNodesLabel\">Sub-forums:</span>\n\t\t\t\t<ol class=\"node-subNodeFlatList\">\n" + subForums + "\t\t\t\t</ol>\n\t\t\t</div>\n"
@@ -40,7 +41,7 @@ namespace SmogonTeamCrawler.Tests
 
         private static string Page(string template, params string[] nodes)
         {
-            var html = new StringBuilder($"<!DOCTYPE html>\n<html id=\"XF\" data-template=\"{template}\">\n<body>\n<div class=\"block-body\">\n");
+            var html = new StringBuilder($"<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\" class=\"template-{template}\">\n<body>\n<div class=\"block-body\">\n");
             foreach (var node in nodes)
             {
                 html.Append(node);
@@ -143,6 +144,19 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(result.TierToRmtLinks, Has.Count.EqualTo(4));
         }
 
+        [TestCase("<a href=\"$1\" data-xf-init=\"element-tooltip\" data-shortcut=\"node-description\">$2</a>")] // until 2026-11-23
+        [TestCase("<a href=\"$1\">$2</a>")] // a node without description
+        public async Task Scan_WithOtherNodeTitles_FindsTheSameForums(string title)
+        {
+            var index = Regex.Replace(Index, "<element-tooltip [^>]*><a href=\"([^\"]+)\">(.*?)</a></element-tooltip>", title);
+
+            var result = await Scan(index, Archive, Gen8Page);
+
+            Assert.That(index, Does.Not.Contain("<element-tooltip"));
+            Assert.That(result.TierToRegularLinks, Is.EquivalentTo(RegularForums));
+            Assert.That(result.TierToRmtLinks, Has.Count.EqualTo(4));
+        }
+
         [Test]
         public async Task Scan_WithoutTheGen8Forum_ReturnsTheOthers()
         {
@@ -202,6 +216,20 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(items[1].LastPage, Is.EqualTo(3));
             Assert.That(items[1].LatestPostTimestamp, Is.EqualTo(SmogonHtml.Timestamp(new System.DateTime(2026, 11, 8, 13, 35, 0))));
             Assert.That(items[1].LatestPostDisplayDate, Is.EqualTo("Nov 8, 2026 at 1:35 PM"));
+        }
+
+        [Test]
+        public void Parse_ReadsThreadLinksUntil2026_11_23()
+        {
+            var forum = new FakeForum("https://www.smogon.com/forums/forums/sv-ou-teams.748/");
+            forum.AddThread(11).AddPage(new FakePost(2, new System.DateTime(2026, 11, 8, 13, 33, 0)));
+            const string path = "/forums/threads/thread-11.11/";
+            var html = SmogonHtml.Listing("/forums/forums/sv-ou-teams.748/", 1, 1, forum.Threads, forum.NodeId)
+                .Replace($"<preview-tooltip preview-url=\"{path}preview\"><a href=\"{path}\" class=\"\"", $"<a href=\"{path}\" class=\"\" data-xf-init=\"preview-tooltip\" data-preview-url=\"{path}preview\"")
+                .Replace("</a></preview-tooltip>", "</a>");
+
+            Assert.That(html, Does.Not.Contain("<preview-tooltip"));
+            Assert.That(ForumListingParser.Parse(html).Select(item => item.Url), Is.EqualTo(new[] { SmogonHtml.ThreadUrl(11) }));
         }
 
         [Test]
