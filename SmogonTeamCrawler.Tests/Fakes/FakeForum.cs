@@ -290,7 +290,8 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public static string Listing(string forumPath, int page, int pages, IEnumerable<FakeThread> threads, long nodeId)
         {
             var html = new StringBuilder();
-            html.Append($"<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\tdata-container-key=\"node-{nodeId}\"\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-forum_view\">\n<body>\n");
+            html.Append($"<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\t\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-forum_view\">\n<body>\n");
+            html.Append($"<option value=\"{{&quot;search_type&quot;:&quot;post&quot;,&quot;c&quot;:{{&quot;nodes&quot;:[{nodeId}],&quot;child_nodes&quot;:1}}}}\">This forum</option>\n");
             html.Append(PageNav(forumPath, pages));
             html.Append("<div class=\"structItemContainer\">\n");
             foreach (var thread in threads)

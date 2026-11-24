@@ -20,6 +20,13 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(SmogonPages.HasTemplate(html, "forum_view"), Is.EqualTo(expected));
         }
 
+        [TestCase("<html id=\"XF\" data-template=\"forum_view\"\n\tdata-container-key=\"node-726\">")] // until 2026-11-23
+        [TestCase("<option value=\"{&quot;search_type&quot;:&quot;post&quot;,&quot;c&quot;:{&quot;nodes&quot;:[726],&quot;child_nodes&quot;:1}}\">This forum</option>")] // since 2026-11-24
+        public void GetNodeId(string html)
+        {
+            Assert.That(SmogonPages.GetNodeId(html), Is.EqualTo(726));
+        }
+
         [Test]
         public void IsBotCheck_KnowsTheGateCookieOf2026_11_24_ButNotAPostAboutIt()
         {

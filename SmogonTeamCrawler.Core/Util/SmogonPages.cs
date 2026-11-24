@@ -111,10 +111,15 @@ namespace SmogonTeamCrawler.Core.Util
         [GeneratedRegex("data-container-key=\"node-(\\d+)\"")]
         private static partial Regex ContainerKeyRegex();
 
-        /// <summary>The node ID of the forum a listing page belongs to, from its html tag; null if it has none.</summary>
+        // Since 2026-11-24 only the quick search's "This forum" option names the node: {"search_type":"post","c":{"nodes":[525],...}}
+        [GeneratedRegex("&quot;c&quot;:\\{&quot;nodes&quot;:\\[(\\d+)\\]")]
+        private static partial Regex SearchNodeRegex();
+
+        /// <summary>The node ID of the forum a listing page belongs to, from its html tag or quick search; null if it has none.</summary>
         public static long? GetNodeId(string listingHtml)
         {
             var id = ContainerKeyRegex().Match(listingHtml);
+            id = id.Success ? id : SearchNodeRegex().Match(listingHtml);
             return id.Success ? long.Parse(id.Groups[1].Value) : null;
         }
 
