@@ -575,6 +575,10 @@ namespace SmogonTeamCrawler.Core.Collector
         [GeneratedRegex(@"/forums/[^/]*(team|rmt|rate-my|showcase)[^/]*/$", RegexOptions.IgnoreCase)]
         private static partial Regex TeamForumRegex();
 
+        /// <summary>A post's ID on its article tag: id="js-post-8792182"; until 2026-11-23 also data-content="post-8792182".</summary>
+        [GeneratedRegex("id=\"js-post-(\\d+)\"")]
+        private static partial Regex PostIdRegex();
+
         /// <summary>
         /// Reads the pages again that an older parser read and this one may find other teams on (<see cref="IsReadAgain"/>).
         /// Pages that cannot be read now are tried again next run. Returns the number of threads read.
@@ -727,7 +731,7 @@ namespace SmogonTeamCrawler.Core.Collector
                     }
                     if (expectedPosts != null && expectedPosts.TryGetValue(page, out var posts))
                     {
-                        missingPosts.AddRange(posts.Where(postId => !site!.Contains($"data-content=\"post-{postId}\"")));
+                        missingPosts.AddRange(posts.Where(postId => !site!.Contains($"id=\"js-post-{postId}\"")));
                     }
 
                     analyses.Add((page, await StartPageAnalysisAsync(threadUrl, page, site!, prefix).ConfigureAwait(false)));
@@ -993,11 +997,9 @@ namespace SmogonTeamCrawler.Core.Collector
                 lineDataHandler.PostedBy = lineDataHandler.PostedBy[(lineDataHandler.PostedBy.IndexOf("\"") + 1)..];
                 lineDataHandler.PostedBy = lineDataHandler.PostedBy[..lineDataHandler.PostedBy.IndexOf("\"")];
 }
-            else if (line.Contains("data-content=\""))
+            else if (PostIdRegex().Match(line) is { Success: true } postId)
             {
-lineDataHandler.PostLink = line[(line.IndexOf("data-content=\"") + 5)..];
-                lineDataHandler.PostLink = lineDataHandler.PostLink[(lineDataHandler.PostLink.IndexOf("\"") + 1)..];
-                lineDataHandler.PostLink = lineDataHandler.PostLink[..lineDataHandler.PostLink.IndexOf("\"")];
+                lineDataHandler.PostLink = "post-" + postId.Groups[1].Value;
             }
             else if (line.StartsWith("\t</article>"))
             {

@@ -349,7 +349,6 @@ namespace SmogonTeamCrawler.Tests.Fakes
             {
                 html.Append(postTag + "\n");
                 html.Append($"\t\tdata-author=\"{post.Author}\"\n");
-                html.Append($"\t\tdata-content=\"post-{post.Id}\"\n");
                 html.Append($"\t\tid=\"js-post-{post.Id}\">\n");
                 html.Append("\t<header class=\"message-attribution message-attribution--split\">\n");
                 html.Append("\t\t<ul class=\"message-attribution-main listInline \">\n\t\t\t<li class=\"u-concealed\">\n");
