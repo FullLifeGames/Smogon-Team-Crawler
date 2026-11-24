@@ -40,7 +40,7 @@ namespace SmogonTeamCrawler.Tests
 
         private static string Page(string template, params string[] nodes)
         {
-            var html = new StringBuilder($"<!DOCTYPE html>\n<html id=\"XF\" data-template=\"{template}\">\n<body>\n<div class=\"block-body\">\n");
+            var html = new StringBuilder($"<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\" class=\"template-{template}\">\n<body>\n<div class=\"block-body\">\n");
             foreach (var node in nodes)
             {
                 html.Append(node);

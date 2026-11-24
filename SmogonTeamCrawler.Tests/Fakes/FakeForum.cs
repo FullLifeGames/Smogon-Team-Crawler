@@ -33,7 +33,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
         }
     }
 
-    /// <summary>A forum with threads that renders listing and thread pages the way Smogon (XenForo 2.3) does.</summary>
+    /// <summary>A forum with threads that renders listing and thread pages the way Smogon does since 2026-11-24.</summary>
     internal class FakeForum
     {
         /// <param name="nodeId">The node ID, for a URL without one (".../forums/gen1/").</param>
@@ -290,7 +290,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public static string Listing(string forumPath, int page, int pages, IEnumerable<FakeThread> threads, long nodeId)
         {
             var html = new StringBuilder();
-            html.Append($"<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"forum_view\"\n\tdata-container-key=\"node-{nodeId}\"\n\tdata-content-key=\"forum-{nodeId}\" data-logged-in=\"false\">\n<body>\n");
+            html.Append($"<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\tdata-container-key=\"node-{nodeId}\"\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-forum_view\">\n<body>\n");
             html.Append(PageNav(forumPath, pages));
             html.Append("<div class=\"structItemContainer\">\n");
             foreach (var thread in threads)
@@ -337,7 +337,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
         {
             var threadPath = new Uri(thread.Url).AbsolutePath;
             var html = new StringBuilder();
-            html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"thread_view\" data-logged-in=\"false\">\n<body>\n");
+            html.Append("<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-thread_view\">\n<body>\n");
             html.Append(PageNav(threadPath, thread.Pages.Count, page));
             html.Append("<div class=\"block-body js-replyNewMessageContainer\">\n");
             foreach (var post in thread.Pages[page - 1])
@@ -374,7 +374,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public static string SearchResults(IEnumerable<FakeSearchResult> results, string? nextHref)
         {
             var html = new StringBuilder();
-            html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"search_results\" data-logged-in=\"false\">\n<body>\n");
+            html.Append("<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-search_results\">\n<body>\n");
             html.Append("<div class=\"block-container\">\n\t<ol class=\"block-body\">\n");
             foreach (var result in results)
             {

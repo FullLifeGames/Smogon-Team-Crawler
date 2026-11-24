@@ -39,7 +39,17 @@ namespace SmogonTeamCrawler.Core.Util
         public static string PageUrl(string baseUrl, int page) => page <= 1 ? baseUrl : baseUrl + "page-" + page;
 
         public static bool IsBotCheck(string html) =>
-            html.Contains("xf_smogon_gate") || (html.Contains("Checking your browser") && !html.Contains("data-template=\""));
+            html.Contains("xf_smogon_gate") || ((html.Contains("forum_gate=") || html.Contains("Checking your browser")) && !HasTemplate(html));
+
+        /// <summary>
+        /// Whether the html tag names the XenForo template (any if null): data-template="forum_list" until 2026-11-23,
+        /// the class template-forum_list since 2026-11-24.
+        /// </summary>
+        public static bool HasTemplate(string html, string? template = null)
+        {
+            var name = template == null ? "[^\"\\s]+" : Regex.Escape(template);
+            return Regex.IsMatch(html, "<html\\b[^>]*?\\s(?:data-template=\"" + name + "\"|class=\"(?:[^\"]*\\s)?template-" + name + "[\"\\s])");
+        }
 
         /// <summary>Forum index, category and forum listing pages carry the XenForo template name on the html tag.</summary>
         public static void EnsureTemplate(string html, string url, string template)
@@ -48,7 +58,7 @@ namespace SmogonTeamCrawler.Core.Util
             {
                 throw new SmogonAccessBlockedException(url);
             }
-            if (!html.Contains("data-template=\"" + template + "\""))
+            if (!HasTemplate(html, template))
             {
                 throw new UnexpectedPageException(url, "expected the XenForo template '" + template + "'");
             }
