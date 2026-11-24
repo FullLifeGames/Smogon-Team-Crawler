@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace SmogonTeamCrawler.Core.Util
@@ -38,8 +40,54 @@ namespace SmogonTeamCrawler.Core.Util
         /// <summary>Page 1 is requested without suffix, since ".../page-1" answers with a redirect (one extra request).</summary>
         public static string PageUrl(string baseUrl, int page) => page <= 1 ? baseUrl : baseUrl + "page-" + page;
 
+        /// <summary>
+        /// A bot check page: by its cookie "xf_smogon_gate", or by its cookie "forum_gate" (since 24 November 2026) or its
+        /// text on a page that names no template; a forum page whose post quotes them names its template.
+        /// </summary>
         public static bool IsBotCheck(string html) =>
-            html.Contains("xf_smogon_gate") || (html.Contains("Checking your browser") && !html.Contains("data-template=\""));
+            html.Contains("xf_smogon_gate")
+            || ((html.Contains("forum_gate=") || html.Contains("Checking your browser")) && GetTemplates(html).Count == 0);
+
+        [GeneratedRegex("<html\\b[^>]*>", RegexOptions.IgnoreCase)]
+        private static partial Regex HtmlTagRegex();
+
+        [GeneratedRegex("(?<![\\w-])data-template=\"([^\"]*)\"")]
+        private static partial Regex DataTemplateRegex();
+
+        [GeneratedRegex("(?<![\\w-])class=\"([^\"]*)\"")]
+        private static partial Regex ClassRegex();
+
+        private const string TemplateClassPrefix = "template-";
+
+        /// <summary>
+        /// The XenForo templates the page's html tag names: data-template="forum_list" until 24 November 2026, since then
+        /// the class "template-forum_list" (Smogon's XenForo fork Amphoro). Empty if the page has no html tag or no marker.
+        /// </summary>
+        public static IReadOnlyList<string> GetTemplates(string html)
+        {
+            var tag = HtmlTagRegex().Match(html);
+            if (!tag.Success)
+            {
+                return [];
+            }
+            var templates = new List<string>();
+            var data = DataTemplateRegex().Match(tag.Value);
+            if (data.Success && data.Groups[1].Value.Length > 0)
+            {
+                templates.Add(data.Groups[1].Value);
+            }
+            var classes = ClassRegex().Match(tag.Value);
+            if (classes.Success)
+            {
+                templates.AddRange(classes.Groups[1].Value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+                    .Where(name => name.StartsWith(TemplateClassPrefix, StringComparison.Ordinal) && name.Length > TemplateClassPrefix.Length)
+                    .Select(name => name[TemplateClassPrefix.Length..]));
+            }
+            return templates;
+        }
+
+        /// <summary>Whether the page's html tag names the XenForo template, in either markup (see <see cref="GetTemplates"/>).</summary>
+        public static bool HasTemplate(string html, string template) => GetTemplates(html).Contains(template);
 
         /// <summary>Forum index, category and forum listing pages carry the XenForo template name on the html tag.</summary>
         public static void EnsureTemplate(string html, string url, string template)
@@ -48,9 +96,11 @@ namespace SmogonTeamCrawler.Core.Util
             {
                 throw new SmogonAccessBlockedException(url);
             }
-            if (!html.Contains("data-template=\"" + template + "\""))
+            var templates = GetTemplates(html);
+            if (!templates.Contains(template))
             {
-                throw new UnexpectedPageException(url, "expected the XenForo template '" + template + "'");
+                var found = templates.Count > 0 ? "the page is '" + string.Join("', '", templates) + "'" : "the page names none";
+                throw new UnexpectedPageException(url, "expected the XenForo template '" + template + "', " + found);
             }
         }
 
@@ -101,10 +151,21 @@ namespace SmogonTeamCrawler.Core.Util
         [GeneratedRegex("data-container-key=\"node-(\\d+)\"")]
         private static partial Regex ContainerKeyRegex();
 
-        /// <summary>The node ID of the forum a listing page belongs to, from its html tag; null if it has none.</summary>
+        // {"search_type":"post","c":{"nodes":[525],"child_nodes":1}}, HTML-encoded in an attribute
+        [GeneratedRegex("(?:&quot;|\")c(?:&quot;|\"):\\{(?:&quot;|\")nodes(?:&quot;|\"):\\[(\\d+)\\]")]
+        private static partial Regex SearchConstraintNodeRegex();
+
+        /// <summary>
+        /// The node ID of the forum a listing page belongs to: from its html tag until 24 November 2026, since then from the
+        /// quick search's "This forum" option. Null if it has neither.
+        /// </summary>
         public static long? GetNodeId(string listingHtml)
         {
             var id = ContainerKeyRegex().Match(listingHtml);
+            if (!id.Success)
+            {
+                id = SearchConstraintNodeRegex().Match(listingHtml);
+            }
             return id.Success ? long.Parse(id.Groups[1].Value) : null;
         }
 

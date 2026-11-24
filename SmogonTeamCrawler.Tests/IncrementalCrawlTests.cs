@@ -14,12 +14,20 @@ using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Tests
 {
-    [TestFixture]
+    [TestFixture(SmogonMarkup.XenForo)]
+    [TestFixture(SmogonMarkup.Amphoro)]
     public class IncrementalCrawlTests
     {
         private const string ForumUrl = "https://www.smogon.com/forums/forums/overused.726/";
         private const string Tier = "gen9OverUsed";
         private static readonly DateTime Old = new(2020, 5, 1, 13, 37, 0);
+
+        private readonly SmogonMarkup _markup;
+
+        public IncrementalCrawlTests(SmogonMarkup markup)
+        {
+            _markup = markup;
+        }
 
         private FakeHttpHandler _http = null!;
         private IDistributedCache _cache = null!;
@@ -34,7 +42,7 @@ namespace SmogonTeamCrawler.Tests
         {
             _http = new FakeHttpHandler();
             _cache = new InMemoryDistributedCache();
-            _forum = new FakeForum(ForumUrl) { ThreadsPerPage = 2 };
+            _forum = new FakeForum(ForumUrl) { ThreadsPerPage = 2, Markup = _markup };
             _sticky = _forum.AddThread(1, sticky: true).AddPage(new FakePost(11, Old.AddHours(5), "A1"));
             _b = _forum.AddThread(2)
                 .AddPage(new FakePost(21, Old.AddHours(1), "B1"))
@@ -179,7 +187,7 @@ namespace SmogonTeamCrawler.Tests
             _b.AddPage(new FakePost(23, Old.AddDays(10), "B3"));
 
             Assert.ThrowsAsync<SmogonAccessBlockedException>(() =>
-                Crawl(afterPublish: () => _http.Html(_b.Url + "page-2", SmogonHtml.BotCheck)));
+                Crawl(afterPublish: () => _http.Html(_b.Url + "page-2", SmogonHtml.BotCheckPage(_markup))));
 
             // The interrupted thread still counts as changed and is read again in full once access works.
             var teams = await Crawl();
@@ -191,7 +199,7 @@ namespace SmogonTeamCrawler.Tests
         public void BotCheck_OnTheListing_StopsTheCrawl()
         {
             Assert.ThrowsAsync<SmogonAccessBlockedException>(() =>
-                Crawl(afterPublish: () => _http.Html(ForumUrl, SmogonHtml.BotCheck)));
+                Crawl(afterPublish: () => _http.Html(ForumUrl, SmogonHtml.BotCheckPage(_markup))));
         }
 
         [Test]
@@ -391,7 +399,7 @@ namespace SmogonTeamCrawler.Tests
         public async Task MovedThread_IsOnlyCollectedInItsNewForum()
         {
             const string otherForumUrl = "https://www.smogon.com/forums/forums/gen-9-ou-archive.841/";
-            var otherForum = new FakeForum(otherForumUrl);
+            var otherForum = new FakeForum(otherForumUrl) { Markup = _markup };
             otherForum.AddThread(9).AddPage(new FakePost(91, Old, "Z1"));
             otherForum.Publish(_http);
             var forums = new Dictionary<string, string> { [Tier] = ForumUrl, ["gen9Gen 9 OU Archive"] = otherForumUrl };

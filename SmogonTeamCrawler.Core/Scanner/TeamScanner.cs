@@ -83,7 +83,7 @@ namespace SmogonTeamCrawler.Core.Scanner
             {
                 throw new SmogonAccessBlockedException(url);
             }
-            if (!response.IsSuccessStatusCode || !html.Contains("data-template=\"forum_view\""))
+            if (!response.IsSuccessStatusCode || !SmogonPages.HasTemplate(html, "forum_view"))
             {
                 Console.WriteLine($"Warning: the forum {url} was not found ({(int)response.StatusCode}); its teams are missing from this run.");
                 return;

@@ -14,9 +14,17 @@ using System.Threading.Tasks;
 namespace SmogonTeamCrawler.Tests
 {
     /// <summary>Runs that find team posts through the search: all posts of a forum on its first run, later the posts since.</summary>
-    [TestFixture]
+    [TestFixture(SmogonMarkup.XenForo)]
+    [TestFixture(SmogonMarkup.Amphoro)]
     public class SearchCrawlTests
     {
+        private readonly SmogonMarkup _markup;
+
+        public SearchCrawlTests(SmogonMarkup markup)
+        {
+            _markup = markup;
+        }
+
         private const string ForumUrl = "https://www.smogon.com/forums/forums/overused.726/";
         private const string OtherForumUrl = "https://www.smogon.com/forums/forums/uploaded-analyses.769/";
         private const string SlugForumUrl = "https://www.smogon.com/forums/forums/adv/";
@@ -40,15 +48,15 @@ namespace SmogonTeamCrawler.Tests
         {
             _http = new FakeHttpHandler();
             _cache = new InMemoryDistributedCache();
-            _forum = new FakeForum(ForumUrl);
+            _forum = new FakeForum(ForumUrl) { Markup = _markup };
             _a = _forum.AddThread(1).AddPage(new FakePost(11, Old, "A1"));
             _b = _forum.AddThread(2)
                 .AddPage(new FakePost(21, Old.AddHours(1), "B1"))
                 .AddPage(new FakePost(22, Old.AddHours(2), "B2", "https://pokepast.es/b2"));
             _c = _forum.AddThread(3).AddPage(new FakePost(31, Old.AddHours(3)));
-            _other = new FakeForum(OtherForumUrl);
-            _slug = new FakeForum(SlugForumUrl, nodeId: 958);
-            _search = new FakeSearch(_forum, _other, _slug);
+            _other = new FakeForum(OtherForumUrl) { Markup = _markup };
+            _slug = new FakeForum(SlugForumUrl, nodeId: 958) { Markup = _markup };
+            _search = new FakeSearch(_forum, _other, _slug) { Markup = _markup };
             // Posted after the first run, which FirstRun moves back in time
             _recent = DateTime.UtcNow.AddHours(-1);
         }
@@ -171,11 +179,23 @@ namespace SmogonTeamCrawler.Tests
         [Test]
         public async Task FirstRun_SearchNotAvailable_WalksTheListing()
         {
-            _search.Unavailable = "<!DOCTYPE html><html data-template=\"error\"><body><div class=\"blockMessage\">The search could not be completed because the search keywords were too short, too long, or too common.</div></body></html>";
+            _search.Unavailable = $"<!DOCTYPE html>{SmogonHtml.HtmlTag("error", _markup)}<body><div class=\"blockMessage\">The search could not be completed because the search keywords were too short, too long, or too common.</div></body></html>";
 
             var teams = await Crawl();
 
             Assert.That(SearchRequests(), Has.Count.EqualTo(1));
+            Assert.That(_http.Requests, Does.Contain(ForumUrl).And.Contain(_c.Url));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2" }));
+        }
+
+        [Test]
+        public async Task FirstRun_SearchAnswers404_WalksTheListing()
+        {
+            _search.NotFound = true;
+
+            var teams = await Crawl();
+
+            Assert.That(SearchRequests(), Has.Count.EqualTo(1), "one try per run");
             Assert.That(_http.Requests, Does.Contain(ForumUrl).And.Contain(_c.Url));
             Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2" }));
         }
@@ -286,12 +306,26 @@ namespace SmogonTeamCrawler.Tests
         {
             await FirstRun();
             _b.AddPage(new FakePost(23, _recent, "B3", "https://pokepast.es/b3"));
-            _search.Unavailable = "<!DOCTYPE html><html data-template=\"error\"><body>You must be logged-in to do that.</body></html>";
+            _search.Unavailable = $"<!DOCTYPE html>{SmogonHtml.HtmlTag("error", _markup)}<body>You must be logged-in to do that.</body></html>";
 
             var teams = await Crawl();
 
             Assert.That(SearchRequests(), Has.Count.EqualTo(1));
             // Thread 3 has no teams and thread 1 no new posts since the first run's search
+            Assert.That(OtherRequests(), Is.EqualTo(new[] { ForumUrl, _b.Url + "page-2", _b.Url + "page-3", "https://pokepast.es/b3" }));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "B3" }));
+        }
+
+        [Test]
+        public async Task SearchAnswers404_WalksTheListing_AndReadsOnlyThreadsWithNewPosts()
+        {
+            await FirstRun();
+            _b.AddPage(new FakePost(23, _recent, "B3", "https://pokepast.es/b3"));
+            _search.NotFound = true;
+
+            var teams = await Crawl();
+
+            Assert.That(SearchRequests(), Has.Count.EqualTo(1));
             Assert.That(OtherRequests(), Is.EqualTo(new[] { ForumUrl, _b.Url + "page-2", _b.Url + "page-3", "https://pokepast.es/b3" }));
             Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "B3" }));
         }

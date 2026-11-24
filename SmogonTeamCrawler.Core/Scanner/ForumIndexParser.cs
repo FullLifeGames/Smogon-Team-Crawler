@@ -14,7 +14,8 @@ namespace SmogonTeamCrawler.Core.Scanner
     {
         private const string ForumPath = "/forums/forums/";
 
-        [GeneratedRegex("<a href=\"(?<href>[^\"]+)\"(?<attrs>[^>]*)>(?<inner>.*?)</a>", RegexOptions.Singleline)]
+        // "nodeTitle": the anchor opens the node's title (since 24 November 2026 it may be wrapped in an element-tooltip).
+        [GeneratedRegex("(?<nodeTitle><h3 class=\"node-title\">\\s*(?:<element-tooltip\\b[^>]*>\\s*)?)?<a href=\"(?<href>[^\"]+)\"(?<attrs>[^>]*)>(?<inner>.*?)</a>", RegexOptions.Singleline)]
         private static partial Regex AnchorRegex();
 
         [GeneratedRegex("<ol\\b|</ol>|<a href=\"(?<href>/forums/forums/[^\"]+)\" class=\"subNodeLink[^\"]*\">(?<inner>.*?)</a>", RegexOptions.Singleline)]
@@ -69,11 +70,14 @@ namespace SmogonTeamCrawler.Core.Scanner
             return forums;
         }
 
-        /// <summary>A node title (forum or category) or a sub-forum link; link forums and sub-categories are neither.</summary>
+        /// <summary>
+        /// A node title (forum or category) or a sub-forum link; link forums and sub-categories are neither. Node titles
+        /// carried data-shortcut="node-description" until 24 November 2026; since then they are the link in the node's h3.
+        /// </summary>
         private static (bool IsNode, bool IsSubForum) Kind(Match anchor)
         {
             var attrs = anchor.Groups["attrs"].Value;
-            return (attrs.Contains("data-shortcut=\"node-description\""),
+            return (attrs.Contains("data-shortcut=\"node-description\"") || anchor.Groups["nodeTitle"].Success,
                 attrs.Contains("class=\"subNodeLink") && anchor.Groups["href"].Value.StartsWith(ForumPath));
         }
 

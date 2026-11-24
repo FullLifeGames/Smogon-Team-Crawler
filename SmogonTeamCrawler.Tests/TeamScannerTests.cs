@@ -11,9 +11,17 @@ using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Tests
 {
-    [TestFixture]
+    [TestFixture(SmogonMarkup.XenForo)]
+    [TestFixture(SmogonMarkup.Amphoro)]
     public class TeamScannerTests
     {
+        private readonly SmogonMarkup _markup;
+
+        public TeamScannerTests(SmogonMarkup markup)
+        {
+            _markup = markup;
+        }
+
         /// <summary>A sub-forum link as Smogon renders it since November 2026: no "subNodeLink--forum", "--unread" only if unread.</summary>
         private static string SubForum(string path, string name, string children = "", bool link = false, bool unread = false) =>
             link
@@ -27,20 +35,34 @@ namespace SmogonTeamCrawler.Tests
         private static string SubCategory(string path, string name) =>
             $"\t<li>\n\t\t<a href=\"/forums/categories/{path}/\" class=\"subNodeLink subNodeLink--category \">{name}</a>\n\t</li>\n";
 
-        private static string Node(int id, string path, string name, string subForums = "") =>
+        /// <param name="described">
+        /// Whether the node has a description; since 24 November 2026 the title of such a node is wrapped in an element-tooltip.
+        /// </param>
+        private string Node(int id, string path, string name, string subForums = "", bool described = true) =>
             $"<div class=\"node node--id{id} node--depth2 node--unread\">\n"
-            + "\t<div class=\"node-body\">\n\t\t<div class=\"node-main js-nodeMain\">\n\t\t\t<h3 class=\"node-title\">\n"
-            + $"\t\t\t\t<a href=\"/forums/forums/{path}/\" data-xf-init=\"element-tooltip\" data-shortcut=\"node-description\">{name}</a>\n"
-            + "\t\t\t</h3>\n"
+            + (_markup == SmogonMarkup.Amphoro
+                ? "\t<div class=\"node-body\">\n"
+                  + "\t\t<span class=\"node-icon\" aria-hidden=\"true\">\n\t\t\t<i class=\"fa--forum far fa-comments \"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"fa--mask\" role=\"img\" aria-hidden=\"true\" ></svg></i>\n\t\t</span>\n"
+                  + "\t\t<div class=\"node-main\">\n\t\t\t<h3 class=\"node-title\">\n"
+                  + (described
+                      ? $"\t\t\t\t<element-tooltip element=\"#node-description-{id}\" extra-class=\"tooltip--basic tooltip--description\" placement=\"right\" maintain=\"true\"><a href=\"/forums/forums/{path}/\">{name}</a></element-tooltip>\n"
+                      : $"\t\t\t\t<a href=\"/forums/forums/{path}/\">{name}</a>\n")
+                  + "\t\t\t</h3>\n"
+                  + (described
+                      ? $"\t\t\t<div class=\"node-description node-description--tooltip\" id=\"node-description-{id}\">About {name}. Join the <a href=\"https://discord.gg/test\" target=\"_blank\" class=\"link\" rel=\"nofollow ugc noopener\">Discord</a>.</div>\n"
+                      : "")
+                : "\t<div class=\"node-body\">\n\t\t<div class=\"node-main js-nodeMain\">\n\t\t\t<h3 class=\"node-title\">\n"
+                  + $"\t\t\t\t<a href=\"/forums/forums/{path}/\" data-xf-init=\"element-tooltip\" data-shortcut=\"node-description\">{name}</a>\n"
+                  + "\t\t\t</h3>\n")
             + (subForums.Length > 0
                 ? "\t\t\t<div class=\"node-subNodesFlat\">\n\t\t\t\t<span class=\"node-subNodesLabel\">Sub-forums:</span>\n\t\t\t\t<ol class=\"node-subNodeFlatList\">\n" + subForums + "\t\t\t\t</ol>\n\t\t\t</div>\n"
                 : "")
             + "\t\t</div>\n\t\t<div class=\"node-stats\">\n\t\t\t<div class=\"node-statsMeta\"><dl class=\"pairs pairs--rows\"><dt>Threads</dt><dd>1K</dd></dl></div>\n\t\t</div>\n"
             + "\t</div>\n</div>\n";
 
-        private static string Page(string template, params string[] nodes)
+        private string Page(string template, params string[] nodes)
         {
-            var html = new StringBuilder($"<!DOCTYPE html>\n<html id=\"XF\" data-template=\"{template}\">\n<body>\n<div class=\"block-body\">\n");
+            var html = new StringBuilder($"<!DOCTYPE html>\n{SmogonHtml.HtmlTag(template, _markup)}\n<body>\n<div class=\"block-body\">\n");
             foreach (var node in nodes)
             {
                 html.Append(node);
@@ -48,9 +70,10 @@ namespace SmogonTeamCrawler.Tests
             return html.Append("</div>\n</body>\n</html>\n").ToString();
         }
 
-        private static readonly string Index = Page("forum_list",
+        private string Index => Page("forum_list",
             Node(383, "intro_hub", "Information &amp; Resources", SubForum("admin-reports.359", "Admin Reports")),
-            Node(725, "smogon-metagames.725", "Smogon Metagames",
+            // Without a description, as on Smogon's index of 24 November 2026
+            Node(725, "smogon-metagames.725", "Smogon Metagames", described: false, subForums:
                 SubForum("overused.726", "OverUsed",
                     SubForum("gen-9-ou-archive.841", "Gen 9 OU Archive", unread: true) + SubForum("ou-analyses.683", "OU Analyses", link: true))
                 + SubForum("ubers.727", "Ubers", unread: true)
@@ -66,17 +89,17 @@ namespace SmogonTeamCrawler.Tests
                 SubForum("smogon-gallery.788", "Smogon Gallery") + SubForum("closed-forums.183", "Closed Forums")));
 
         /// <summary>The page of Gen 8 Competitive Discussion: its sub-forums as nodes, theirs as sub-forum links.</summary>
-        private static readonly string Gen8Page = Page("forum_view",
+        private string Gen8Page => Page("forum_view",
             Node(526, "ss-ou.526", "SS OU", SubForum("gen-8-ou-archive.637", "Gen 8 OU Archive")),
             Node(527, "ss-ubers.527", "SS Ubers", SubForum("circuit-tournaments.489", "Circuit Tournaments", link: true)));
 
         private const string Gen8Url = "https://www.smogon.com/forums/forums/gen-8-competitive-discussion.525/";
 
-        private static readonly string Archive = Page("category_view",
+        private string Archive => Page("category_view",
             Node(322, "2006-2015-b101-archive.322", "2006 - 2015 B101 Archive", SubForum("2020-2023-b101-resources.557", "2020 - 2023 B101 Resources")),
             Node(165, "2007-2022-rate-my-team.165", "2007 - 2022 Rate My Team",
                 SubForum("bw-ou-teams.119", "BW OU Teams") + SubForum("ss-other-teams.546", "SS Other Teams")),
-            Node(187, "2011-2013-translation-projects.187", "2011 - 2013 Translation Projects"));
+            Node(187, "2011-2013-translation-projects.187", "2011 - 2013 Translation Projects", described: false));
 
         private static async Task<SmogonTeamCrawler.Core.Data.ScanResult> Scan(string index, string archive, string? gen8Page = null)
         {
@@ -164,7 +187,36 @@ namespace SmogonTeamCrawler.Tests
         [Test]
         public void Scan_WithABotCheck_StopsTheCrawl()
         {
-            Assert.ThrowsAsync<SmogonAccessBlockedException>(() => Scan(SmogonHtml.BotCheck, Archive));
+            Assert.ThrowsAsync<SmogonAccessBlockedException>(() => Scan(SmogonHtml.BotCheckPage(_markup), Archive));
+        }
+
+        [Test]
+        public void Scan_WithAnIndexWithoutTemplate_StopsTheCrawl()
+        {
+            var index = Index.Replace(SmogonHtml.HtmlTag("forum_list", _markup), "<html id=\"forum\" lang=\"en-US\" data-app=\"public\">");
+
+            var error = Assert.ThrowsAsync<UnexpectedPageException>(() => Scan(index, Archive, Gen8Page));
+            Assert.That(error!.Message, Does.Contain("expected the XenForo template 'forum_list', the page names none"));
+        }
+
+        [Test]
+        public void Scan_WithAnArchiveOfAnotherTemplate_StopsTheCrawl()
+        {
+            var archive = Archive.Replace(SmogonHtml.HtmlTag("category_view", _markup), SmogonHtml.HtmlTag("error", _markup));
+
+            var error = Assert.ThrowsAsync<UnexpectedPageException>(() => Scan(Index, archive, Gen8Page));
+            Assert.That(error!.Message, Does.Contain("expected the XenForo template 'category_view', the page is 'error'"));
+        }
+
+        [Test]
+        public async Task Scan_WithAGen8PageOfAnotherTemplate_ReturnsTheOthers()
+        {
+            var gen8Page = Gen8Page.Replace(SmogonHtml.HtmlTag("forum_view", _markup), SmogonHtml.HtmlTag("forum_view_x", _markup));
+
+            var result = await Scan(Index, Archive, gen8Page);
+
+            Assert.That(result.TierToRegularLinks.Keys, Has.None.StartWith("gen8SS"));
+            Assert.That(result.TierToRegularLinks, Has.Count.EqualTo(5));
         }
 
         private static System.Collections.Generic.KeyValuePair<string, string> Pair(string key, string path) =>
@@ -174,8 +226,9 @@ namespace SmogonTeamCrawler.Tests
     [TestFixture]
     public class ForumListingParserTests
     {
-        [Test]
-        public void Parse_ReadsThreadMetadata()
+        [TestCase(SmogonMarkup.XenForo)]
+        [TestCase(SmogonMarkup.Amphoro)]
+        public void Parse_ReadsThreadMetadata(SmogonMarkup markup)
         {
             var forum = new FakeForum("https://www.smogon.com/forums/forums/sv-ou-teams.748/");
             forum.AddThread(10, sticky: true).AddPage(new FakePost(1, new System.DateTime(2024, 7, 5, 0, 18, 0)));
@@ -183,11 +236,12 @@ namespace SmogonTeamCrawler.Tests
                 .AddPage(new FakePost(2, new System.DateTime(2026, 11, 8, 13, 33, 0)))
                 .AddPage(new FakePost(3, new System.DateTime(2026, 11, 8, 13, 34, 0)))
                 .AddPage(new FakePost(4, new System.DateTime(2026, 11, 8, 13, 35, 0)));
-            var html = SmogonHtml.Listing("/forums/forums/sv-ou-teams.748/", 1, 45, forum.Threads, forum.NodeId)
+            var html = SmogonHtml.Listing("/forums/forums/sv-ou-teams.748/", 1, 45, forum.Threads, forum.NodeId, markup)
                 .Replace("/forums/threads/thread-10.10/", "/forums/threads/10/");
 
             var items = ForumListingParser.Parse(html);
 
+            Assert.That(SmogonPages.GetNodeId(html), Is.EqualTo(748));
             Assert.That(SmogonPages.GetNumberOfPages(html), Is.EqualTo(45));
             Assert.That(items, Has.Count.EqualTo(2));
             Assert.That(items[0].ThreadId, Is.EqualTo(10));
@@ -208,6 +262,7 @@ namespace SmogonTeamCrawler.Tests
         public void GetNumberOfPages_WithoutPageNav_IsOne()
         {
             Assert.That(SmogonPages.GetNumberOfPages("<html data-template=\"forum_view\"></html>"), Is.EqualTo(1));
+            Assert.That(SmogonPages.GetNumberOfPages("<html class=\"template-forum_view\"></html>"), Is.EqualTo(1));
         }
 
         [Test]

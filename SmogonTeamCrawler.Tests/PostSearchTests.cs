@@ -1,9 +1,12 @@
 #nullable enable
 using NUnit.Framework;
 using SmogonTeamCrawler.Core.Collector;
+using SmogonTeamCrawler.Tests.Fakes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Tests
@@ -163,6 +166,28 @@ namespace SmogonTeamCrawler.Tests
                 "  \"Nature (Adamant | Jolly | Impish | Ca...\": 3 post(s) so far, searching before 2022-12-10",
                 "Searched posts in 1 forum(s): \"pokepast.es\" 3, \"Nature (Adamant | Jolly | Impish | Ca...\" 3, 3 post(s) in all",
             }));
+        }
+
+        [Test]
+        public async Task Search_ReadsResultPagesInTheMarkupSince24November2026()
+        {
+            var page = ResultPage.Replace("<html id=\"XF\" data-template=\"search_results\">", SmogonHtml.HtmlTag("search_results", SmogonMarkup.Amphoro))
+                .Replace("class=\"pageNav-jump pageNav-jump--next\"", "");
+            Assert.That(page, Does.Contain("class=\"template-search_results\"").And.Not.Contain("data-template"));
+            var search = new PostSearch(_ => Task.FromResult(page));
+
+            var result = await search.SearchAsync(new[] { "pokepast.es" }, new long[] { 859 }, new DateTime(2026, 11, 1));
+
+            Assert.That(result!.Hits, Has.Count.EqualTo(3));
+        }
+
+        [Test]
+        public async Task Search_AnsweredWith404_IsNotAvailable()
+        {
+            // HttpClient.GetStringAsync throws for a 404, as Smogon answered searches by URL on 24 November 2026.
+            var search = new PostSearch(_ => Task.FromException<string>(new HttpRequestException("Response status code does not indicate success: 404 (Not Found).", null, HttpStatusCode.NotFound)));
+
+            Assert.That(await search.SearchAsync(new[] { CollectorOptions.TypedTeamQuery }, new long[] { 726 }, null), Is.Null);
         }
 
         [Test]

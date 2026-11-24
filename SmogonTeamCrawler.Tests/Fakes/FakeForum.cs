@@ -33,7 +33,20 @@ namespace SmogonTeamCrawler.Tests.Fakes
         }
     }
 
-    /// <summary>A forum with threads that renders listing and thread pages the way Smogon (XenForo 2.3) does.</summary>
+    /// <summary>How Smogon marks up its pages.</summary>
+    public enum SmogonMarkup
+    {
+        /// <summary>XenForo 2.3, until 24 November 2026: data-template="..." on the html tag, data-xf-init attributes.</summary>
+        XenForo,
+
+        /// <summary>
+        /// Smogon's XenForo fork Amphoro, since 24 November 2026: class="template-..." on the html tag, custom elements such as
+        /// preview-tooltip. Thread pages and search results show only the new html tag: their new markup is not known yet.
+        /// </summary>
+        Amphoro,
+    }
+
+    /// <summary>A forum with threads that renders listing and thread pages the way Smogon does, in either markup.</summary>
     internal class FakeForum
     {
         /// <param name="nodeId">The node ID, for a URL without one (".../forums/gen1/").</param>
@@ -51,6 +64,8 @@ namespace SmogonTeamCrawler.Tests.Fakes
 
         /// <summary>The opening tag of each post on the thread pages.</summary>
         public string PostTag { get; set; } = SmogonHtml.PostTag;
+
+        public SmogonMarkup Markup { get; set; } = SmogonMarkup.XenForo;
 
         public FakeThread AddThread(long id, bool sticky = false, string prefix = "")
         {
@@ -70,14 +85,14 @@ namespace SmogonTeamCrawler.Tests.Fakes
             {
                 var items = (page == 1 ? stickies : new List<FakeThread>())
                     .Concat(normal.Skip((page - 1) * ThreadsPerPage).Take(ThreadsPerPage));
-                http.Html(SmogonHtml.PageUrl(Url, page), SmogonHtml.Listing(path, page, pages, items, NodeId));
+                http.Html(SmogonHtml.PageUrl(Url, page), SmogonHtml.Listing(path, page, pages, items, NodeId, Markup));
             }
 
             foreach (var thread in Threads)
             {
                 for (var page = 1; page <= thread.Pages.Count; page++)
                 {
-                    var html = SmogonHtml.ThreadPage(thread, page, PostTag);
+                    var html = SmogonHtml.ThreadPage(thread, page, PostTag, Markup);
                     http.Html(SmogonHtml.PageUrl(thread.Url, page), html);
                     foreach (var post in thread.Pages[page - 1])
                     {
@@ -111,6 +126,9 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public int MaxResults { get; set; } = 200;
         /// <summary>Served for every search instead of results.</summary>
         public string? Unavailable { get; set; }
+        /// <summary>Every search answers 404 with a page outside the forum, as Smogon's searches by URL did on 24 November 2026.</summary>
+        public bool NotFound { get; set; }
+        public SmogonMarkup Markup { get; set; } = SmogonMarkup.XenForo;
         /// <summary>Posts the search does not find.</summary>
         public HashSet<long> NotIndexed { get; } = new();
         /// <summary>Positions shown instead of the real one, as after posts were deleted or restored.</summary>
@@ -123,6 +141,10 @@ namespace SmogonTeamCrawler.Tests.Fakes
             if (Unavailable != null)
             {
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Unavailable) };
+            }
+            if (NotFound)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent(SmogonHtml.NotFoundPage) };
             }
             var query = url[(url.IndexOf('?') + 1)..].Split('&')
                 .Select(part => part.Split('=', 2))
@@ -156,7 +178,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
                     + (olderThan != DateTime.MaxValue ? $"&amp;c[older_than]={query["c[older_than]"]}" : "")
                     + string.Concat(nodes.Select((node, index) => $"&amp;c[nodes][{index}]={node}")) + "&amp;o=date"
                 : null;
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(SmogonHtml.SearchResults(shown, next)) };
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(SmogonHtml.SearchResults(shown, next, Markup)) };
         }
 
         private static DateTime? Timestamp(Dictionary<string, string> query, string key) =>
@@ -258,6 +280,42 @@ namespace SmogonTeamCrawler.Tests.Fakes
             <script>document.cookie = "xf_smogon_gate=" + 1;</script></body></html>
             """;
 
+        /// <summary>The bot check since 24 November 2026: the same page, its cookie is now "forum_gate".</summary>
+        public const string BotCheckForumGate = """
+            <!DOCTYPE html>
+            <html><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Smogon Forums</title></head>
+            <body><p id="m">Checking your browser...</p>
+            <noscript>JavaScript and cookies are required to view this page.</noscript>
+            <script>document.cookie = "forum_gate=" + 1;</script></body></html>
+            """;
+
+        public static string BotCheckPage(SmogonMarkup markup) => markup == SmogonMarkup.Amphoro ? BotCheckForumGate : BotCheck;
+
+        /// <summary>Smogon's 404 page outside the forum, as for searches by URL since 24 November 2026.</summary>
+        public const string NotFoundPage = """
+            <!DOCTYPE html>
+            <html lang="en"><head><meta charset="utf-8"><title>Not found</title><link rel="stylesheet" href="/__assets/basic-page-TEST.css"></head>
+            <body><h1>Not found</h1></body></html>
+            """;
+
+        /// <summary>The opening html tag of a forum page, which names its XenForo template; listings name their node until 2026.</summary>
+        public static string HtmlTag(string template, SmogonMarkup markup = SmogonMarkup.XenForo, long? nodeId = null) => markup switch
+        {
+            SmogonMarkup.Amphoro => $"<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\t\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-{template}\">",
+            _ => $"<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"{template}\""
+                + (nodeId != null ? $"\n\tdata-container-key=\"node-{nodeId}\"\n\tdata-content-key=\"forum-{nodeId}\"" : "")
+                + " data-logged-in=\"false\">",
+        };
+
+        /// <summary>The quick search of a listing page, whose "This forum" option names the node (Amphoro).</summary>
+        private static string QuickSearch(long nodeId)
+        {
+            var thisForum = "{&quot;search_type&quot;:&quot;post&quot;,&quot;c&quot;:{&quot;nodes&quot;:[" + nodeId + "],&quot;child_nodes&quot;:1}}";
+            return $"<quick-search><good-select selected=\"{thisForum}\"><select name=\"constraints\" class=\"input\" aria-label=\"Search within\" id=\"search-constraints\">"
+                + "<option value=\"\">Everywhere</option><option value=\"{&quot;search_type&quot;:&quot;post&quot;}\">Threads</option>"
+                + $"<option value=\"{thisForum}\">This forum</option></select></good-select></quick-search>\n";
+        }
+
         public static string ThreadUrl(long id) => $"https://www.smogon.com/forums/threads/thread-{id}.{id}/";
 
         public static string PageUrl(string baseUrl, int page) => page <= 1 ? baseUrl : baseUrl + "page-" + page;
@@ -287,17 +345,26 @@ namespace SmogonTeamCrawler.Tests.Fakes
             return nav.ToString();
         }
 
-        public static string Listing(string forumPath, int page, int pages, IEnumerable<FakeThread> threads, long nodeId)
+        public static string Listing(string forumPath, int page, int pages, IEnumerable<FakeThread> threads, long nodeId, SmogonMarkup markup = SmogonMarkup.XenForo)
         {
+            var amphoro = markup == SmogonMarkup.Amphoro;
             var html = new StringBuilder();
-            html.Append($"<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"forum_view\"\n\tdata-container-key=\"node-{nodeId}\"\n\tdata-content-key=\"forum-{nodeId}\" data-logged-in=\"false\">\n<body>\n");
+            html.Append($"<!DOCTYPE html>\n{HtmlTag("forum_view", markup, nodeId)}\n<body>\n");
+            if (amphoro)
+            {
+                html.Append(QuickSearch(nodeId));
+            }
             html.Append(PageNav(forumPath, pages));
             html.Append("<div class=\"structItemContainer\">\n");
             foreach (var thread in threads)
             {
                 var threadPath = new Uri(thread.Url).AbsolutePath;
-                html.Append($"\t<div class=\"structItem structItem--thread js-inlineModContainer js-threadListItem-{thread.Id}\" data-author=\"Tester\">\n");
-                html.Append("\t\t<div class=\"structItem-cell structItem-cell--main\" data-xf-init=\"touch-proxy\">\n");
+                html.Append(amphoro
+                    ? $"\t<div class=\"structItem structItem--thread js-threadListItem-{thread.Id}\" data-author=\"Tester\">\n"
+                    : $"\t<div class=\"structItem structItem--thread js-inlineModContainer js-threadListItem-{thread.Id}\" data-author=\"Tester\">\n");
+                html.Append(amphoro
+                    ? "\t\t<touch-proxy class=\"structItem-cell structItem-cell--main\">\n"
+                    : "\t\t<div class=\"structItem-cell structItem-cell--main\" data-xf-init=\"touch-proxy\">\n");
                 if (thread.Sticky)
                 {
                     html.Append("\t\t\t<ul class=\"structItem-statuses\">\n\t\t\t\t<li>\n\t\t\t\t\t<i class=\"structItem-status structItem-status--sticky\" aria-hidden=\"true\" title=\"Sticky\"></i>\n\t\t\t\t\t<span class=\"u-srOnly\">Sticky</span>\n\t\t\t\t</li>\n\t\t\t</ul>\n");
@@ -307,7 +374,9 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 {
                     html.Append($"\t\t\t\t<a href=\"{forumPath}?prefix_id=1\" class=\"labelLink\" rel=\"nofollow\"><span class=\"label label--blue\" dir=\"auto\">{thread.Prefix}</span></a>\n");
                 }
-                html.Append($"\t\t\t\t<a href=\"{threadPath}\" class=\"\" data-tp-primary=\"on\" data-xf-init=\"preview-tooltip\" data-preview-url=\"{threadPath}preview\"\n\t\t\t\t\t>\n\t\t\t\t\tThread {thread.Id}\n\t\t\t\t</a>\n");
+                html.Append(amphoro
+                    ? $"\t\t\t\t<preview-tooltip preview-url=\"{threadPath}preview\"><a href=\"{threadPath}\" class=\"\" data-tp-primary=\"on\"\n\t\t\t\t\t>\n\t\t\t\t\tThread {thread.Id}\n\t\t\t\t</a></preview-tooltip>\n"
+                    : $"\t\t\t\t<a href=\"{threadPath}\" class=\"\" data-tp-primary=\"on\" data-xf-init=\"preview-tooltip\" data-preview-url=\"{threadPath}preview\"\n\t\t\t\t\t>\n\t\t\t\t\tThread {thread.Id}\n\t\t\t\t</a>\n");
                 html.Append("\t\t\t</div>\n\t\t\t<div class=\"structItem-minor\">\n");
                 if (thread.Pages.Count > 1)
                 {
@@ -318,7 +387,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
                     }
                     html.Append("\t\t\t\t</span>\n");
                 }
-                html.Append("\t\t\t</div>\n\t\t</div>\n");
+                html.Append(amphoro ? "\t\t\t</div>\n\t\t</touch-proxy>\n" : "\t\t\t</div>\n\t\t</div>\n");
                 html.Append("\t\t<div class=\"structItem-cell structItem-cell--latest\">\n");
                 html.Append($"\t\t\t<a href=\"{threadPath}latest\" rel=\"nofollow\">{Time("structItem-latestDate ", thread.LatestPost)}</a>\n");
                 html.Append("\t\t</div>\n\t</div>\n");
@@ -333,11 +402,11 @@ namespace SmogonTeamCrawler.Tests.Fakes
         /// <summary>The opening tag of a post before November 2026.</summary>
         public const string PostTagBefore2026 = "<article class=\"message message--post js-post js-inlineModContainer  \"";
 
-        public static string ThreadPage(FakeThread thread, int page, string postTag = PostTag)
+        public static string ThreadPage(FakeThread thread, int page, string postTag = PostTag, SmogonMarkup markup = SmogonMarkup.XenForo)
         {
             var threadPath = new Uri(thread.Url).AbsolutePath;
             var html = new StringBuilder();
-            html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"thread_view\" data-logged-in=\"false\">\n<body>\n");
+            html.Append($"<!DOCTYPE html>\n{HtmlTag("thread_view", markup)}\n<body>\n");
             html.Append(PageNav(threadPath, thread.Pages.Count, page));
             html.Append("<div class=\"block-body js-replyNewMessageContainer\">\n");
             foreach (var post in thread.Pages[page - 1])
@@ -371,10 +440,10 @@ namespace SmogonTeamCrawler.Tests.Fakes
         }
 
         /// <summary>A page of search results as Smogon renders them; thread results are the first post of their thread.</summary>
-        public static string SearchResults(IEnumerable<FakeSearchResult> results, string? nextHref)
+        public static string SearchResults(IEnumerable<FakeSearchResult> results, string? nextHref, SmogonMarkup markup = SmogonMarkup.XenForo)
         {
             var html = new StringBuilder();
-            html.Append("<!DOCTYPE html>\n<html id=\"XF\" lang=\"en-US\" dir=\"LTR\" data-xf=\"2.3\" data-app=\"public\" data-template=\"search_results\" data-logged-in=\"false\">\n<body>\n");
+            html.Append($"<!DOCTYPE html>\n{HtmlTag("search_results", markup)}\n<body>\n");
             html.Append("<div class=\"block-container\">\n\t<ol class=\"block-body\">\n");
             foreach (var result in results)
             {
