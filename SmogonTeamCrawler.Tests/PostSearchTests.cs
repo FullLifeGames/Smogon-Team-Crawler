@@ -201,18 +201,22 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(await search.SearchAsync(new[] { CollectorOptions.PasteQuery }, new long[] { 726 }, null), Is.Null);
         }
 
-        /// <summary>The page of 2026-11-26 as Smogon answers a search without results (seen in the markup of 2026-11-13).</summary>
-        private static string NoResultsPage() => Regex.Replace(SavedPages.SearchResults, "<ol class=\"block-body\">.*?</ol>",
-            "<div class=\"block-body\">\n\t\t\t<div class=\"blockMessage\">\n\t\t\t\tNo results found.\n\t\t\t</div>\n\t\t</div>", RegexOptions.Singleline);
+        /// <summary>
+        /// The page of 2026-11-26 as Smogon answers a search without results: seen in a div in the markup of 2026-11-13, not yet
+        /// since. Smogon has turned other divs of the class into elements of its own, as &lt;browser-warning&gt;.
+        /// </summary>
+        private static string NoResultsPage(string element = "div") => Regex.Replace(SavedPages.SearchResults, "<ol class=\"block-body\">.*?</ol>",
+            $"<div class=\"block-body\">\n\t\t\t<{element} class=\"blockMessage\">\n\t\t\t\tNo results found.\n\t\t\t</{element}>\n\t\t</div>", RegexOptions.Singleline);
 
-        [Test]
-        public async Task Search_ReadsTheResultsOf2026_11_26_AndAPageWithoutResults()
+        [TestCase("div")]
+        [TestCase("block-message")]
+        public async Task Search_ReadsTheResultsOf2026_11_26_AndAPageWithoutResults(string element)
         {
-            var search = new PostSearch(url => Task.FromResult(url.Contains("hastebin") ? SavedPages.SearchResults : NoResultsPage()));
+            var search = new PostSearch(url => Task.FromResult(url.Contains("hastebin") ? SavedPages.SearchResults : NoResultsPage(element)));
 
             var result = await search.SearchAsync(new[] { CollectorOptions.PasteQuery, CollectorOptions.TypedTeamQuery }, new long[] { 726, 859 }, new DateTime(2026, 11, 24));
 
-            Assert.That(NoResultsPage(), Does.Not.Contain("block-row--separated"));
+            Assert.That(NoResultsPage(element), Does.Not.Contain("block-row--separated"));
             Assert.That(result!.Hits.Select(hit => hit.PostId), Is.EquivalentTo(new long?[] { 11201487, 11201488 }));
         }
 
