@@ -184,11 +184,57 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
-        public async Task Search_AnsweredWithAnErrorPage_IsNotAvailable()
+        public void Search_AnsweredWithAnErrorPage_StopsTheCrawl()
         {
             var search = new PostSearch(_ => Task.FromResult("<html data-template=\"error\"><div class=\"blockMessage\">The search could not be completed because the search keywords were too short, too long, or too common.</div></html>"));
 
-            Assert.That(await search.SearchAsync(new[] { CollectorOptions.TypedTeamQuery }, new long[] { 726 }, null), Is.Null);
+            var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => search.SearchAsync(new[] { CollectorOptions.TypedTeamQuery }, new long[] { 726 }, null));
+
+            Assert.That(stop!.Message, Does.Contain("too short, too long, or too common"));
+        }
+
+        [Test]
+        public async Task Search_ThatCannotBeLoaded_IsNotAvailable()
+        {
+            var search = new PostSearch(_ => throw new System.Net.Http.HttpRequestException("Service Unavailable"));
+
+            Assert.That(await search.SearchAsync(new[] { CollectorOptions.PasteQuery }, new long[] { 726 }, null), Is.Null);
+        }
+
+        /// <summary>The page of 2026-11-26 as Smogon answers a search without results (seen in the markup of 2026-11-13).</summary>
+        private static string NoResultsPage() => Regex.Replace(SavedPages.SearchResults, "<ol class=\"block-body\">.*?</ol>",
+            "<div class=\"block-body\">\n\t\t\t<div class=\"blockMessage\">\n\t\t\t\tNo results found.\n\t\t\t</div>\n\t\t</div>", RegexOptions.Singleline);
+
+        [Test]
+        public async Task Search_ReadsTheResultsOf2026_11_26_AndAPageWithoutResults()
+        {
+            var search = new PostSearch(url => Task.FromResult(url.Contains("hastebin") ? SavedPages.SearchResults : NoResultsPage()));
+
+            var result = await search.SearchAsync(new[] { CollectorOptions.PasteQuery, CollectorOptions.TypedTeamQuery }, new long[] { 726, 859 }, new DateTime(2026, 11, 24));
+
+            Assert.That(NoResultsPage(), Does.Not.Contain("block-row--separated"));
+            Assert.That(result!.Hits.Select(hit => hit.PostId), Is.EquivalentTo(new long?[] { 11201487, 11201488 }));
+        }
+
+        [Test]
+        public void Search_StopsAtResultsItCannotRead()
+        {
+            // The page of 2026-11-26 with a date the parser cannot read, as for the parser before it
+            var unreadable = SavedPages.SearchResults.Replace("<dynamic-time timestamp=", "<dynamic-time ts=");
+            var search = new PostSearch(_ => Task.FromResult(unreadable));
+
+            var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => search.SearchAsync(new[] { "pokepast.es" }, new long[] { 726 }, null));
+
+            Assert.That(stop!.Url, Does.StartWith("https://www.smogon.com/forums/search/search?keywords=pokepast.es"));
+        }
+
+        [Test]
+        public void Search_StopsAtAResultsPageWithoutResultsOrNoResultsMessage()
+        {
+            var empty = Regex.Replace(SavedPages.SearchResults, "<ol class=\"block-body\">.*?</ol>", "", RegexOptions.Singleline);
+            var search = new PostSearch(_ => Task.FromResult(empty));
+
+            Assert.ThrowsAsync<UnexpectedPageException>(() => search.SearchAsync(new[] { "pokepast.es" }, new long[] { 726 }, null));
         }
 
         [Test]

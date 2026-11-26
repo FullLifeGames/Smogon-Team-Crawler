@@ -111,6 +111,8 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public int MaxResults { get; set; } = 200;
         /// <summary>Served for every search instead of results.</summary>
         public string? Unavailable { get; set; }
+        /// <summary>The status every search fails with, as a search that cannot be loaded.</summary>
+        public HttpStatusCode? FailWith { get; set; }
         /// <summary>Posts the search does not find.</summary>
         public HashSet<long> NotIndexed { get; } = new();
         /// <summary>Positions shown instead of the real one, as after posts were deleted or restored.</summary>
@@ -123,6 +125,10 @@ namespace SmogonTeamCrawler.Tests.Fakes
             if (Unavailable != null)
             {
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Unavailable) };
+            }
+            if (FailWith != null)
+            {
+                return new HttpResponseMessage(FailWith.Value);
             }
             var query = url[(url.IndexOf('?') + 1)..].Split('&')
                 .Select(part => part.Split('=', 2))
@@ -384,6 +390,11 @@ namespace SmogonTeamCrawler.Tests.Fakes
         {
             var html = new StringBuilder();
             html.Append("<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-search_results\">\n<body>\n");
+            if (!results.Any())
+            {
+                html.Append("<div class=\"block-container\">\n\t<div class=\"block-body\">\n\t\t<div class=\"blockMessage\">\n\t\t\tNo results found.\n\t\t</div>\n\t</div>\n</div>\n</body>\n</html>\n");
+                return html.ToString();
+            }
             html.Append("<div class=\"block-container\">\n\t<ol class=\"block-body\">\n");
             foreach (var result in results)
             {

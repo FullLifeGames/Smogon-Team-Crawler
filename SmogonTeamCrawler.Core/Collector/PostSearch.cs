@@ -63,7 +63,7 @@ namespace SmogonTeamCrawler.Core.Collector
 
         /// <summary>
         /// All posts of the forums <paramref name="nodeIds"/> that match one of <paramref name="queries"/>, from
-        /// <paramref name="since"/> on (all of them without) and before <paramref name="before"/>. Null if guests cannot search.
+        /// <paramref name="since"/> on (all of them without) and before <paramref name="before"/>. Null if the search cannot be loaded.
         /// </summary>
         public async Task<SearchResult?> SearchAsync(IEnumerable<string> queries, IReadOnlyList<long> nodeIds, DateTime? since, DateTime? before = null)
         {
@@ -87,7 +87,7 @@ namespace SmogonTeamCrawler.Core.Collector
 
         /// <summary>
         /// Pages through the results by date. A day with more results than a search shows is split by forum; a single forum
-        /// with such a day is <paramref name="uncovered"/>. False if guests cannot search.
+        /// with such a day is <paramref name="uncovered"/>. False if the search cannot be loaded.
         /// </summary>
         private async Task<bool> SearchRangeAsync(string query, IReadOnlyList<long> nodeIds, DateTime? since, DateTime? before, Dictionary<(long, long?), SearchHit> hits, HashSet<(long, long?)> matched, HashSet<long> uncovered)
         {
@@ -145,7 +145,14 @@ namespace SmogonTeamCrawler.Core.Collector
                     return (null, false);
                 }
                 pages++;
-                hits.AddRange(SearchResultParser.Parse(html, out url));
+                var found = SearchResultParser.Parse(html, out var next);
+                if (found.Count == 0 && !SearchResultParser.IsNoResults(html))
+                {
+                    // On 2026-11-26 a changed date made every result unreadable, and two runs searched "0 posts".
+                    throw new UnexpectedPageException(url, "no search result could be read, and the page does not say \"No results found.\"");
+                }
+                hits.AddRange(found);
+                url = next;
             }
             return (hits, pages >= MaxResultPages);
         }
@@ -156,7 +163,10 @@ namespace SmogonTeamCrawler.Core.Collector
         [GeneratedRegex("<div class=\"blockMessage[^\"]*\">\\s*([^<]+)")]
         private static partial Regex MessageRegex();
 
-        /// <summary>A result page; null (after a message) if Smogon answers with anything else.</summary>
+        /// <summary>
+        /// A result page; null (after a message) if it cannot be loaded. Any other page stops the crawl: walking the forums
+        /// instead would read their listings back to the first search.
+        /// </summary>
         private async Task<string?> GetResultPageAsync(string url)
         {
             for (var attempt = 0; ; attempt++)
@@ -189,8 +199,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 // Such as "The search could not be completed because the search keywords were too short, too long, or too common."
                 var message = MessageRegex().Matches(html).Select(match => match.Groups[1].Value.Trim())
                     .FirstOrDefault(text => !text.Contains("JavaScript") && !text.Contains("out of date browser"));
-                Console.WriteLine($"Search not available ({message ?? url + " answered without results page"}); the forum listings are walked instead.");
-                return null;
+                throw new UnexpectedPageException(url, message != null ? $"the search answered \"{message}\"" : "the search answered without a results page");
             }
         }
     }
@@ -220,6 +229,12 @@ namespace SmogonTeamCrawler.Core.Collector
 
         [GeneratedRegex("<a href=\"([^\"]+)\" class=\"pageNav-jump pageNav-jump--next\"")]
         private static partial Regex NextPageRegex();
+
+        [GeneratedRegex("<div class=\"blockMessage[^\"]*\">\\s*No results found\\.\\s*</div>")]
+        private static partial Regex NoResultsRegex();
+
+        /// <summary>Whether the page is Smogon's answer to a search without results.</summary>
+        public static bool IsNoResults(string html) => NoResultsRegex().IsMatch(html);
 
         public static IList<SearchHit> Parse(string html, out string? nextPageUrl)
         {
