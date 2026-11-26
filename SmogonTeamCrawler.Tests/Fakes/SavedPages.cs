@@ -16,6 +16,12 @@ namespace SmogonTeamCrawler.Tests.Fakes
         /// <summary>Page 1 of the Tournaments forum (34), loaded on 2026-11-26.</summary>
         public static string ForumListing => Read("forum-listing-2026-11-26.html");
 
+        /// <summary>Page 29 of the National Dex Ubers Teambuilding Competition, loaded on 2026-11-26: 21 posts, 20 teams.</summary>
+        public static string ThreadPage => Read("thread-page-2026-11-26.html");
+
+        /// <summary>The URL of <see cref="ThreadPage"/> without its page.</summary>
+        public const string ThreadPageUrl = "https://www.smogon.com/forums/threads/national-dex-ubers-teambuilding-competition.3732930/";
+
         private static string Read(string name) => File.ReadAllText(Path.Combine(TestContext.CurrentContext.TestDirectory, "Fixtures", name));
     }
 }

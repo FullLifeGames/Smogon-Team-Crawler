@@ -124,14 +124,24 @@ namespace SmogonTeamCrawler.Tests
                         var html = SmogonHtml.ThreadPage(thread, page)
                             .Replace("<details><summary title=\"Click to reveal or hide spoiler\">Spoiler</summary><div>", "<div class=\"bbCodeBlock bbCodeBlock--spoiler\">\n<div class=\"bbCodeBlock-content\">")
                             .Replace("</div></details>", "</div>\n</div>");
-                        html = Regex.Replace(html, "\tid=\"js-post-(\\d+)\"", "\tdata-content=\"post-$1\"\n\t\tid=\"js-post-$1\"");
+                        // The author on the article tag, the date with data-date (both until 2026-11-25)
+                        html = Regex.Replace(html, "\tid=\"js-post-(\\d+)\" itemscope[^\n]*\n\t\t\t<h4 class=\"message-name\">.*?<span itemprop=\"name\">([^<]*)</span>.*?</h4>",
+                            "\tdata-author=\"$2\"\n\t\tdata-content=\"post-$1\"\n\t\tid=\"js-post-$1\">");
+                        foreach (var post in thread.Pages[page - 1])
+                        {
+                            html = html.Replace(SmogonHtml.Time("", post.Date), SmogonHtml.TimeUntil2026_11_25("", post.Date));
+                        }
+                        Assert.That(html, Does.Not.Contain("message-name").And.Not.Contain("<dynamic-time"));
                         _http.Html(SmogonHtml.PageUrl(thread.Url, page), html);
                     }
                 }
             });
 
             Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
-            Assert.That(teams.Single(t => t.TeamString.StartsWith("MonB2")).URL, Is.EqualTo(_b.Url + "page-2#post-22"));
+            var b2 = teams.Single(t => t.TeamString.StartsWith("MonB2"));
+            Assert.That(b2.URL, Is.EqualTo(_b.Url + "page-2#post-22"));
+            Assert.That(b2.PostedBy, Is.EqualTo("Tester"));
+            Assert.That(b2.PostDate, Is.EqualTo(Old.AddHours(4)));
         }
 
         [Test]
@@ -234,12 +244,11 @@ namespace SmogonTeamCrawler.Tests
             await Crawl();
             var b2 = _b.Pages[1][0];
             _b.AddPage(new FakePost(23, Old.AddDays(10), "B3"));
-            // As the parser saw the posts of 2026-11-26: teams without author, and the time of reading as post date. The
-            // author stays on the page, where the parser does not look for it (on the line that opens the post).
+            // A post whose author or date the parser does not find, as the posts of 2026-11-26 for the parser before
             var page = SmogonHtml.ThreadPage(_b, 2);
             page = unreadable == "author"
-                ? page.Replace(SmogonHtml.PostTag + "\n\t\tdata-author=\"Tester\"\n", SmogonHtml.PostTag + " data-author=\"Tester\"\n")
-                : page.Replace(SmogonHtml.TimeUntil2026_11_25("", b2.Date), SmogonHtml.Time("", b2.Date));
+                ? Regex.Replace(page, "\t\t\t<h4 class=\"message-name\">.*</h4>\n", "")
+                : page.Replace($" title=\"{SmogonHtml.DisplayDate(b2.Date)}\"", "");
             Assert.That(page, Is.Not.EqualTo(SmogonHtml.ThreadPage(_b, 2)));
 
             var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => Crawl(afterPublish: () => _http.Html(_b.Url + "page-2", page)));

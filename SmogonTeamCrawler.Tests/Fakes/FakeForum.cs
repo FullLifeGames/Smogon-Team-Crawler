@@ -359,12 +359,12 @@ namespace SmogonTeamCrawler.Tests.Fakes
             foreach (var post in thread.Pages[page - 1])
             {
                 html.Append(postTag + "\n");
-                html.Append($"\t\tdata-author=\"{post.Author}\"\n");
-                html.Append($"\t\tid=\"js-post-{post.Id}\">\n");
+                html.Append($"\t\tid=\"js-post-{post.Id}\" itemscope itemtype=\"https://schema.org/Comment\">\n");
+                html.Append($"\t\t\t<h4 class=\"message-name\"><member-tooltip user-id=\"1\"><a href=\"/forums/members/tester.1/\" class=\"username \" dir=\"auto\"><span itemprop=\"name\">{post.Author}</span></a></member-tooltip></h4>\n");
                 html.Append("\t<header class=\"message-attribution message-attribution--split\">\n");
                 html.Append("\t\t<ul class=\"message-attribution-main listInline \">\n\t\t\t<li class=\"u-concealed\">\n");
                 html.Append($"\t\t\t\t<a href=\"{threadPath}post-{post.Id}\" rel=\"nofollow\" >\n");
-                html.Append($"\t\t\t\t\t{TimeUntil2026_11_25("", post.Date)}\n");
+                html.Append($"\t\t\t\t\t{Time("", post.Date)}\n");
                 html.Append("\t\t\t\t</a>\n\t\t\t</li>\n\t\t</ul>\n\t</header>\n");
                 html.Append("\t<div class=\"message-content js-messageContent\">\n\t\t<article class=\"message-body js-selectToQuote\">\n");
                 html.Append($"<div class=\"bbWrapper\">{post.Text ?? "Post text"}<br />\n");
