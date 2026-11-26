@@ -68,9 +68,9 @@ namespace SmogonTeamCrawler.Tests
             var url = SavedPages.ThreadPageUrl + "page-29";
             SmogonPages.EnsureThreadPage(SavedPages.ThreadPage, url);
 
-            // Post 2 has no team, so the parser would not stop at it.
-            var authorLine = Regex.Matches(SavedPages.ThreadPage, "\t*<h4 class=\"message-name\">.*</h4>\n")[1];
-            var html = SavedPages.ThreadPage.Remove(authorLine.Index, authorLine.Length);
+            // Post 2 has no team, so the parser would not stop at it. The line end stays: git checks the fixture out with \r\n on Windows.
+            var author = Regex.Matches(SavedPages.ThreadPage, "<h4 class=\"message-name\">.*?</h4>")[1];
+            var html = SavedPages.ThreadPage.Remove(author.Index, author.Length);
 
             Assert.That(() => SmogonPages.EnsureThreadPage(html, url),
                 Throws.TypeOf<UnexpectedPageException>().With.Message.Contains("post 2 of 21 has no author"));

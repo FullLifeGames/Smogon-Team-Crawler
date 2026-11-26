@@ -52,7 +52,7 @@ namespace SmogonTeamCrawler.Tests
         {
             // Post 1 (post-11186177) has six teams.
             var page = unreadable == "author"
-                ? new Regex("\t*<h4 class=\"message-name\">.*</h4>\n").Replace(SavedPages.ThreadPage, "", 1)
+                ? new Regex("<h4 class=\"message-name\">.*?</h4>").Replace(SavedPages.ThreadPage, "", 1)
                 : new Regex(" title=\"Nov 5, 2026 at 1:48 PM\"").Replace(SavedPages.ThreadPage, "", 1);
             Assert.That(page, Is.Not.EqualTo(SavedPages.ThreadPage));
 
