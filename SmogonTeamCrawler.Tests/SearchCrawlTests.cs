@@ -393,6 +393,21 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public async Task PageWithATeamWithoutAuthor_IsReadAgain_ThoughItsLikesAreNotDue()
+        {
+            await FirstRun();
+            // As the run of 2026-11-26 stored ten pages
+            UpdateThread(2, thread => thread.Pages[2].Teams.ForEach(team => team.PostedBy = ""));
+
+            var teams = await Crawl();
+
+            Assert.That(OtherRequests(), Is.EqualTo(new[] { _b.Url + "page-2" }));
+            Assert.That(teams.Single(t => t.TeamString.TrimStart().StartsWith("MonB2")).PostedBy, Is.EqualTo("Tester"));
+            await Crawl();
+            Assert.That(OtherRequests(), Is.Empty);
+        }
+
+        [Test]
         public async Task ListingWalkAfterSearchRuns_ReadsThePagesTheSearchMissed()
         {
             await FirstRun();

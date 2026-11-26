@@ -365,13 +365,19 @@ namespace SmogonTeamCrawler.Core.Collector
 
         /// <summary>
         /// In search runs, a page with teams younger than <see cref="CollectorOptions.RecentPageRefreshWindow"/> is read again
-        /// once its newest team is twice as old as at the last read. Likes come in early, so the reads thin out.
+        /// once its newest team is twice as old as at the last read. Likes come in early, so the reads thin out. A page with a
+        /// team without author is read in any case.
         /// </summary>
         private bool RefreshDue(PageCrawlState page, DateTime now)
         {
             if (page.Teams.Count == 0)
             {
                 return false;
+            }
+            if (page.Teams.Any(team => string.IsNullOrEmpty(team.PostedBy)))
+            {
+                // Read on 2026-11-26 without authors, and with the time of reading as post date (10 pages)
+                return true;
             }
             var posted = page.Teams.Max(team => team.PostDate);
             var age = now - posted;
