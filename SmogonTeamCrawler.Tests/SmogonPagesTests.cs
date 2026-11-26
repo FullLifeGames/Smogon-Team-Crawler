@@ -2,6 +2,7 @@
 using NUnit.Framework;
 using SmogonTeamCrawler.Core.Util;
 using SmogonTeamCrawler.Tests.Fakes;
+using System.Text.RegularExpressions;
 
 namespace SmogonTeamCrawler.Tests
 {
@@ -25,6 +26,54 @@ namespace SmogonTeamCrawler.Tests
         public void GetNodeId(string html)
         {
             Assert.That(SmogonPages.GetNodeId(html), Is.EqualTo(726));
+        }
+
+        [TestCase("<h4 class=\"message-name\">")]
+        [TestCase("Tester")] // the name in it
+        [TestCase("id=\"js-post-")]
+        [TestCase(" title=\"")]
+        [TestCase("<div class=\"bbWrapper\">")]
+        [TestCase("\n\t</article>")]
+        public void EnsureThreadPage_WantsWhatTheParserReadsFromEveryPost(string marker)
+        {
+            const string url = "https://www.smogon.com/forums/threads/test.1/";
+            var html = SmogonHtml.ThreadPage(new FakeForum("https://www.smogon.com/forums/forums/test.1/").AddThread(1)
+                .AddPage(new FakePost(11, new System.DateTime(2026, 11, 24, 12, 0, 0)), new FakePost(12, new System.DateTime(2026, 11, 24, 13, 0, 0))), 1);
+            SmogonPages.EnsureThreadPage(html, url);
+
+            html = html.Remove(html.LastIndexOf(marker), marker.Length);
+
+            Assert.That(() => SmogonPages.EnsureThreadPage(html, url), Throws.TypeOf<UnexpectedPageException>().With.Message.Contains("post 2 of 2"));
+        }
+
+        [Test]
+        public void EnsureThreadPage_TakesTheAuthorFromDataAuthor_AsUntil2026_11_25_ButNotFromTheLineThatOpensThePost()
+        {
+            const string url = "https://www.smogon.com/forums/threads/test.1/";
+            var html = SmogonHtml.ThreadPage(new FakeForum("https://www.smogon.com/forums/forums/test.1/").AddThread(1)
+                .AddPage(new FakePost(11, new System.DateTime(2026, 11, 24, 12, 0, 0))), 1);
+            html = Regex.Replace(html, "\t\t\t<h4 class=\"message-name\">.*</h4>\n", "");
+            Assert.That(html, Does.Not.Contain("message-name"));
+
+            SmogonPages.EnsureThreadPage(html.Replace(SmogonHtml.PostTag + "\n", SmogonHtml.PostTag + "\n\t\tdata-author=\"Tester\"\n"), url);
+
+            // There the parser does not read it.
+            Assert.That(() => SmogonPages.EnsureThreadPage(html.Replace(SmogonHtml.PostTag + "\n", SmogonHtml.PostTag + " data-author=\"Tester\"\n"), url),
+                Throws.TypeOf<UnexpectedPageException>().With.Message.Contains("post 1 of 1 has no author"));
+        }
+
+        [Test]
+        public void EnsureThreadPage_PassesThePageOf2026_11_26_ButNotWithoutTheAuthorLineOfAPost()
+        {
+            var url = SavedPages.ThreadPageUrl + "page-29";
+            SmogonPages.EnsureThreadPage(SavedPages.ThreadPage, url);
+
+            // Post 2 has no team, so the parser would not stop at it. The line end stays: git checks the fixture out with \r\n on Windows.
+            var author = Regex.Matches(SavedPages.ThreadPage, "<h4 class=\"message-name\">.*?</h4>")[1];
+            var html = SavedPages.ThreadPage.Remove(author.Index, author.Length);
+
+            Assert.That(() => SmogonPages.EnsureThreadPage(html, url),
+                Throws.TypeOf<UnexpectedPageException>().With.Message.Contains("post 2 of 21 has no author"));
         }
 
         [Test]

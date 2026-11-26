@@ -594,13 +594,6 @@ namespace SmogonTeamCrawler.Core.Collector
         [GeneratedRegex("id=\"js-post-(\\d+)\"")]
         private static partial Regex PostIdRegex();
 
-        [GeneratedRegex("<h4 class=\"message-name\">(.*?)</h4>")]
-        private static partial Regex MessageNameRegex();
-
-        /// <summary>The display date of the time tag in a post's header, the same before and since 2026-11-26.</summary>
-        [GeneratedRegex("<time\\s[^>]*?\\btitle=\"([^\"]+)\"")]
-        private static partial Regex PostTimeTitleRegex();
-
         /// <summary>
         /// Reads the pages again that an older parser read and this one may find other teams on (<see cref="IsReadAgain"/>).
         /// Pages that cannot be read now are tried again next run. Returns the number of threads read.
@@ -1025,10 +1018,10 @@ namespace SmogonTeamCrawler.Core.Collector
                 lineDataHandler.PostedBy = lineDataHandler.PostedBy[(lineDataHandler.PostedBy.IndexOf("\"") + 1)..];
                 lineDataHandler.PostedBy = lineDataHandler.PostedBy[..lineDataHandler.PostedBy.IndexOf("\"")];
 }
-            else if (lineDataHandler.PostedBy.Length == 0 && MessageNameRegex().Match(line) is { Success: true } name)
+            else if (lineDataHandler.PostedBy.Length == 0 && SmogonPages.GetMessageName(line) is { } name)
             {
                 // Since 2026-11-26 without data-author: <h4 class="message-name">…<span itemprop="name">Name</span>…</h4>
-                lineDataHandler.PostedBy = htmlRemoverRegex.Replace(name.Groups[1].Value, string.Empty).Trim();
+                lineDataHandler.PostedBy = name;
             }
             else if (PostIdRegex().Match(line) is { Success: true } postId)
             {
@@ -1132,11 +1125,10 @@ namespace SmogonTeamCrawler.Core.Collector
             {
                 lineDataHandler.TimerHeader = true;
             }
-            else if (lineDataHandler.TimerHeader && PostTimeTitleRegex().Match(line) is { Success: true } time)
+            else if (lineDataHandler.TimerHeader && SmogonPages.GetTimeTitle(line) is { } title)
             {
                 // "Nov 5, 2026 at 3:35 PM"; until 2026-11-25 the tag also had data-date, since 2026-11-26 a <dynamic-time> inside
-                var temp = time.Groups[1].Value.Replace("at ", "");
-                lineDataHandler.PostDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+                lineDataHandler.PostDate = SmogonPages.ParsePostDate(title);
                 lineDataHandler.PostDateRead = true;
                 if (lineDataHandler.PostDate > lineDataHandler.NewestPostDate)
                 {
