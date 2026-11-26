@@ -80,6 +80,23 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(teams.Single(t => t.TeamString.StartsWith("MonB2")).URL, Is.EqualTo(_b.Url + "page-2#post-22"));
         }
 
+        [Test]
+        public async Task ForumWithoutKnownThreads_IsWalkedInFull()
+        {
+            await Crawl();
+            // As the run of 2026-11-26 left the walked forums: no threads, which are still stored
+            var key = "stc:v3:forum:" + ForumUrl;
+            var forum = JsonConvert.DeserializeObject<ForumCrawlState>(_cache.GetString(key)!)!;
+            forum.Threads.Clear();
+            _cache.SetString(key, JsonConvert.SerializeObject(forum));
+
+            var teams = await Crawl();
+
+            // Both listing pages; the threads did not change and are not read
+            Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl, ForumUrl + "page-2" }));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+        }
+
         [TestCase(SmogonHtml.PostTag)]
         [TestCase(SmogonHtml.PostTagBefore2026)]
         public async Task Posts_AreRead_InTheMarkupSinceAndBeforeNovember2026(string postTag)

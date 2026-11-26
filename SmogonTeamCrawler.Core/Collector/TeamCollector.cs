@@ -121,7 +121,9 @@ namespace SmogonTeamCrawler.Core.Collector
                     }
                     break;
             }
-            summary ??= await CollectByListingAsync(forum, url, incremental: forum.Complete && !_options.FullRefresh).ConfigureAwait(false);
+            // An incremental walk keeps the known threads it does not reach. A forum without any is walked in full, as the
+            // walked forums after 2026-11-26, which lost their threads to an unreadable listing.
+            summary ??= await CollectByListingAsync(forum, url, incremental: forum.Complete && forum.Threads.Count > 0 && !_options.FullRefresh).ConfigureAwait(false);
             if (await RereadOutdatedPagesAsync(forum, url).ConfigureAwait(false) is > 0 and var reread)
             {
                 summary += $", {reread} thread(s) read again by the new parser";
