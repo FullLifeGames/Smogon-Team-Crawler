@@ -239,7 +239,7 @@ namespace SmogonTeamCrawler.Tests
 
         [TestCase("author")]
         [TestCase("date")]
-        public async Task PostWithATeam_WhoseAuthorOrDateCannotBeRead_StopsTheCrawl_AndKeepsTheStoredPage(string unreadable)
+        public async Task PostWhoseAuthorOrDateCannotBeRead_SkipsTheThread_AndKeepsTheStoredPage(string unreadable)
         {
             await Crawl();
             var b2 = _b.Pages[1][0];
@@ -251,11 +251,14 @@ namespace SmogonTeamCrawler.Tests
                 : page.Replace($" title=\"{SmogonHtml.DisplayDate(b2.Date)}\"", "");
             Assert.That(page, Is.Not.EqualTo(SmogonHtml.ThreadPage(_b, 2)));
 
-            var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => Crawl(afterPublish: () => _http.Html(_b.Url + "page-2", page)));
+            // The page check skips the thread before the parser would stop at the post (ThreadPageTests).
+            var teams = await Crawl(afterPublish: () => _http.Html(_b.Url + "page-2", page));
 
-            Assert.That(stop!.Url, Is.EqualTo(_b.Url + "page-2"));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
             var stored = JsonConvert.DeserializeObject<ThreadCrawlState>(_cache.GetString("stc:v3:thread:2")!)!;
             Assert.That(stored.Pages[2].Teams.Select(team => (team.PostedBy, team.PostDate)), Is.EqualTo(new[] { ("Tester", Old.AddHours(4)) }));
+            teams = await Crawl();
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "B3", "C1" }));
         }
 
         [Test]

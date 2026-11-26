@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace SmogonTeamCrawler.Core.Util
@@ -75,16 +76,18 @@ namespace SmogonTeamCrawler.Core.Util
             {
                 throw new UnexpectedPageException(url, "the page contains no posts");
             }
-            // A page the team parser cannot read in full is skipped and its stored teams are kept, not stored half read.
+            // A page the team parser cannot read in full is skipped and its stored teams are kept, not stored half read. The
+            // parser reads a post from the line after its opening line on.
             for (var i = 0; i < posts.Count; i++)
             {
+                var start = html.IndexOf('\n', posts[i].Index);
                 var next = i + 1 < posts.Count ? posts[i + 1].Index : html.Length;
-                var end = html.IndexOf("\n\t</article>", posts[i].Index, next - posts[i].Index, StringComparison.Ordinal);
-                var post = end < 0 ? null : html[posts[i].Index..end];
+                var end = start < 0 || start > next ? -1 : html.IndexOf("\n\t</article>", start, next - start, StringComparison.Ordinal);
+                var post = end < 0 ? null : html[start..end];
                 var missing = post == null ? "its end (a line \"\\t</article>\")"
-                    : !post.Contains("data-author=\"", StringComparison.Ordinal) ? "data-author"
+                    : !HasAuthor(post) ? "author (data-author or a name in <h4 class=\"message-name\">)"
                     : !PostIdRegex().IsMatch(post) ? "id=\"js-post-N\""
-                    : !PostDateRegex().IsMatch(post) ? "a date in its message-attribution--split header"
+                    : !HasDate(post) ? "date (the title of the first time tag after its message-attribution--split header)"
                     : !post.Contains("<div class=\"bbWrapper\">", StringComparison.Ordinal) ? "its text (bbWrapper)"
                     : null;
                 if (missing != null)
@@ -97,9 +100,54 @@ namespace SmogonTeamCrawler.Core.Util
         [GeneratedRegex("id=\"js-post-\\d+\"")]
         private static partial Regex PostIdRegex();
 
-        // TeamCollector reads the date from the title, "Mar 22, 2021 at 12:15 AM"
-        [GeneratedRegex("<header class=\"message-attribution message-attribution--split\">[\\s\\S]*?\\btitle=\"[A-Z][a-z]{2} \\d{1,2}, \\d{4} at \\d{1,2}:\\d{2} [AP]M\"")]
-        private static partial Regex PostDateRegex();
+        [GeneratedRegex("data-author=\"[^\"]+\"")]
+        private static partial Regex DataAuthorRegex();
+
+        /// <summary>As TeamCollector reads the author: data-author="Name" until 2026-11-25, since then the message-name line.</summary>
+        private static bool HasAuthor(string post) => DataAuthorRegex().IsMatch(post) || GetMessageName(post) is { Length: > 0 };
+
+        /// <summary>As TeamCollector reads the date: the title of the first time tag on the lines after the header.</summary>
+        private static bool HasDate(string post)
+        {
+            var header = post.IndexOf("<header class=\"message-attribution message-attribution--split\">", StringComparison.Ordinal);
+            var afterHeader = header < 0 ? -1 : post.IndexOf('\n', header);
+            return afterHeader >= 0 && GetTimeTitle(post[afterHeader..]) is { } title
+                && DateTime.TryParseExact(title.Replace("at ", ""), PostDateFormat, English, DateTimeStyles.None, out _);
+        }
+
+        [GeneratedRegex("<h4 class=\"message-name\">(.*?)</h4>")]
+        private static partial Regex MessageNameRegex();
+
+        [GeneratedRegex("<.*?>")]
+        private static partial Regex TagRegex();
+
+        /// <summary>
+        /// The name in the first message-name line of <paramref name="text"/>, without tags; null if it has none. Since
+        /// 2026-11-26 the only place of a post's author: &lt;h4 class="message-name"&gt;…&lt;span itemprop="name"&gt;Name&lt;/span&gt;…&lt;/h4&gt;.
+        /// </summary>
+        public static string? GetMessageName(string text)
+        {
+            var name = MessageNameRegex().Match(text);
+            return name.Success ? TagRegex().Replace(name.Groups[1].Value, string.Empty).Trim() : null;
+        }
+
+        [GeneratedRegex("<time\\s[^>]*?\\btitle=\"([^\"]+)\"")]
+        private static partial Regex TimeTitleRegex();
+
+        /// <summary>The title of the first time tag in <paramref name="text"/>; null if it has none.</summary>
+        public static string? GetTimeTitle(string text)
+        {
+            var time = TimeTitleRegex().Match(text);
+            return time.Success ? time.Groups[1].Value : null;
+        }
+
+        // "Nov 5, 2026 at 3:35 PM" without "at ", the display date of the time tag in a post's header, the same before and since 2026-11-26
+        private const string PostDateFormat = "MMM d, yyyy h:mm tt";
+
+        private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+
+        /// <summary>A post's date from the title of the time tag in its header (<see cref="GetTimeTitle"/>).</summary>
+        public static DateTime ParsePostDate(string title) => DateTime.ParseExact(title.Replace("at ", ""), PostDateFormat, English);
 
         [GeneratedRegex("<article class=\"message [^\"]*\\bjs-post\\b")]
         private static partial Regex PostStartRegex();
