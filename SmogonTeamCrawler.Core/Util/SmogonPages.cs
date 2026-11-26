@@ -98,6 +98,19 @@ namespace SmogonTeamCrawler.Core.Util
             return current.Success && int.TryParse(current.Groups[1].Value, out var page) ? page : 1;
         }
 
+        [GeneratedRegex("\\btimestamp=\"(\\d+)\"")]
+        private static partial Regex TimestampRegex();
+
+        /// <summary>
+        /// The Unix time of a &lt;time&gt; tag, given with the tag that follows it: data-timestamp="N" on the tag until
+        /// 2026-11-25, since 2026-11-26 timestamp="N" on the &lt;dynamic-time&gt; inside it. Null if it has none.
+        /// </summary>
+        public static long? GetTimestamp(string timeTag)
+        {
+            var timestamp = TimestampRegex().Match(timeTag);
+            return timestamp.Success ? long.Parse(timestamp.Groups[1].Value) : null;
+        }
+
         [GeneratedRegex("\\.(\\d+)/?$")]
         private static partial Regex NodeIdRegex();
 

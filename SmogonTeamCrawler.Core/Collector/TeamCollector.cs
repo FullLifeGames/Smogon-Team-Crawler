@@ -121,7 +121,9 @@ namespace SmogonTeamCrawler.Core.Collector
                     }
                     break;
             }
-            summary ??= await CollectByListingAsync(forum, url, incremental: forum.Complete && !_options.FullRefresh).ConfigureAwait(false);
+            // An incremental walk keeps the known threads it does not reach. A forum without any is walked in full, as the
+            // walked forums after 2026-11-26, which lost their threads to an unreadable listing.
+            summary ??= await CollectByListingAsync(forum, url, incremental: forum.Complete && forum.Threads.Count > 0 && !_options.FullRefresh).ConfigureAwait(false);
             if (await RereadOutdatedPagesAsync(forum, url).ConfigureAwait(false) is > 0 and var reread)
             {
                 summary += $", {reread} thread(s) read again by the new parser";
@@ -363,13 +365,19 @@ namespace SmogonTeamCrawler.Core.Collector
 
         /// <summary>
         /// In search runs, a page with teams younger than <see cref="CollectorOptions.RecentPageRefreshWindow"/> is read again
-        /// once its newest team is twice as old as at the last read. Likes come in early, so the reads thin out.
+        /// once its newest team is twice as old as at the last read. Likes come in early, so the reads thin out. A page with a
+        /// team without author is read in any case.
         /// </summary>
         private bool RefreshDue(PageCrawlState page, DateTime now)
         {
             if (page.Teams.Count == 0)
             {
                 return false;
+            }
+            if (page.Teams.Any(team => string.IsNullOrEmpty(team.PostedBy)))
+            {
+                // Read on 2026-11-26 without authors, and with the time of reading as post date (10 pages)
+                return true;
             }
             var posted = page.Teams.Max(team => team.PostDate);
             var age = now - posted;
@@ -400,8 +408,15 @@ namespace SmogonTeamCrawler.Core.Collector
                     forum.NodeId = SmogonPages.GetNodeId(site) ?? forum.NodeId;
                 }
 
+                var items = ForumListingParser.Parse(site);
+                if (items.Count == 0)
+                {
+                    // A complete walk takes the threads it does not list for deleted: on 2026-11-26, when no listing
+                    // could be read, the walked forums lost all their threads.
+                    throw new UnexpectedPageException(pageUrl, "no thread could be read from the forum listing");
+                }
                 var reachedKnownThreads = false;
-                foreach (var item in ForumListingParser.Parse(site))
+                foreach (var item in items)
                 {
                     listed.Add(item);
                     newWatermark = Math.Max(newWatermark, item.LatestPostTimestamp);
@@ -578,6 +593,13 @@ namespace SmogonTeamCrawler.Core.Collector
         /// <summary>A post's ID on its article tag: id="js-post-8792182"; until 2026-11-23 also data-content="post-8792182".</summary>
         [GeneratedRegex("id=\"js-post-(\\d+)\"")]
         private static partial Regex PostIdRegex();
+
+        [GeneratedRegex("<h4 class=\"message-name\">(.*?)</h4>")]
+        private static partial Regex MessageNameRegex();
+
+        /// <summary>The display date of the time tag in a post's header, the same before and since 2026-11-26.</summary>
+        [GeneratedRegex("<time\\s[^>]*?\\btitle=\"([^\"]+)\"")]
+        private static partial Regex PostTimeTitleRegex();
 
         /// <summary>
         /// Reads the pages again that an older parser read and this one may find other teams on (<see cref="IsReadAgain"/>).
@@ -956,7 +978,7 @@ namespace SmogonTeamCrawler.Core.Collector
             };
         }
 
-        private async Task<PageCrawlState> AnalyzePageAsync(string url, int pageCount, string site, string? prefix, DateTime fetchedAt)
+        internal async Task<PageCrawlState> AnalyzePageAsync(string url, int pageCount, string site, string? prefix, DateTime fetchedAt)
         {
             var teams = new List<Team>();
             var lineDataHandler = await ParsePageAsync(url, pageCount, site, prefix, teams).ConfigureAwait(false);
@@ -977,6 +999,11 @@ namespace SmogonTeamCrawler.Core.Collector
             {
                 await HandleLine(url, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler).ConfigureAwait(false);
             }
+            if (lineDataHandler.UnreadablePost != null)
+            {
+                // Stored, the page would replace its teams: on 2026-11-26 ten pages lost the authors and dates of 133 teams.
+                throw new UnexpectedPageException(SmogonPages.PageUrl(url, pageCount), $"the author or the date of {lineDataHandler.UnreadablePost}, a post with a team, could not be read");
+            }
             return lineDataHandler;
         }
 
@@ -989,6 +1016,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 if (SmogonPages.IsPostStart(line))
                 {
                     lineDataHandler.PostStarted = true;
+                    lineDataHandler.PostDateRead = false;
                 }
             }
             else if (line.Contains("data-author=\""))
@@ -997,6 +1025,11 @@ namespace SmogonTeamCrawler.Core.Collector
                 lineDataHandler.PostedBy = lineDataHandler.PostedBy[(lineDataHandler.PostedBy.IndexOf("\"") + 1)..];
                 lineDataHandler.PostedBy = lineDataHandler.PostedBy[..lineDataHandler.PostedBy.IndexOf("\"")];
 }
+            else if (lineDataHandler.PostedBy.Length == 0 && MessageNameRegex().Match(line) is { Success: true } name)
+            {
+                // Since 2026-11-26 without data-author: <h4 class="message-name">…<span itemprop="name">Name</span>…</h4>
+                lineDataHandler.PostedBy = htmlRemoverRegex.Replace(name.Groups[1].Value, string.Empty).Trim();
+            }
             else if (PostIdRegex().Match(line) is { Success: true } postId)
             {
                 lineDataHandler.PostLink = "post-" + postId.Groups[1].Value;
@@ -1015,6 +1048,10 @@ namespace SmogonTeamCrawler.Core.Collector
                 }
                 lineDataHandler.PostHtml.Clear();
                 lineDataHandler.PostMayHaveSets = false;
+                if (currentTeams.Count > 0 && (lineDataHandler.PostedBy.Length == 0 || !lineDataHandler.PostDateRead))
+                {
+                    lineDataHandler.UnreadablePost ??= lineDataHandler.PostLink;
+                }
                 foreach (var team in currentTeams)
                 {
                     var tmpTeam = team;
@@ -1095,14 +1132,12 @@ namespace SmogonTeamCrawler.Core.Collector
             {
                 lineDataHandler.TimerHeader = true;
             }
-            else if (line.Contains("data-date=\"") && lineDataHandler.TimerHeader)
+            else if (lineDataHandler.TimerHeader && PostTimeTitleRegex().Match(line) is { Success: true } time)
             {
-                var temp = line[(line.IndexOf("data-date-string=\"") + "data-date-string=\"".Length)..];
-                temp = temp[(temp.IndexOf("title") + "title".Length)..];
-                temp = temp[(temp.IndexOf("\"") + 1)..];
-                temp = temp[..temp.IndexOf("\"")];
-                temp = temp.Replace("at ", "");
+                // "Nov 5, 2026 at 3:35 PM"; until 2026-11-25 the tag also had data-date, since 2026-11-26 a <dynamic-time> inside
+                var temp = time.Groups[1].Value.Replace("at ", "");
                 lineDataHandler.PostDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+                lineDataHandler.PostDateRead = true;
                 if (lineDataHandler.PostDate > lineDataHandler.NewestPostDate)
                 {
                     lineDataHandler.NewestPostDate = lineDataHandler.PostDate;

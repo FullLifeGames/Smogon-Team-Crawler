@@ -15,4 +15,9 @@
     <ProjectReference Include="..\SmogonTeamCrawler.Core\SmogonTeamCrawler.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Pages as Smogon served them, saved unchanged -->
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

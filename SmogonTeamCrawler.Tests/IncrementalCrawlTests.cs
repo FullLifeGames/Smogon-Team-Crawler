@@ -80,6 +80,23 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(teams.Single(t => t.TeamString.StartsWith("MonB2")).URL, Is.EqualTo(_b.Url + "page-2#post-22"));
         }
 
+        [Test]
+        public async Task ForumWithoutKnownThreads_IsWalkedInFull()
+        {
+            await Crawl();
+            // As the run of 2026-11-26 left the walked forums: no threads, which are still stored
+            var key = "stc:v3:forum:" + ForumUrl;
+            var forum = JsonConvert.DeserializeObject<ForumCrawlState>(_cache.GetString(key)!)!;
+            forum.Threads.Clear();
+            _cache.SetString(key, JsonConvert.SerializeObject(forum));
+
+            var teams = await Crawl();
+
+            // Both listing pages; the threads did not change and are not read
+            Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl, ForumUrl + "page-2" }));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+        }
+
         [TestCase(SmogonHtml.PostTag)]
         [TestCase(SmogonHtml.PostTagBefore2026)]
         public async Task Posts_AreRead_InTheMarkupSinceAndBeforeNovember2026(string postTag)
@@ -107,14 +124,24 @@ namespace SmogonTeamCrawler.Tests
                         var html = SmogonHtml.ThreadPage(thread, page)
                             .Replace("<details><summary title=\"Click to reveal or hide spoiler\">Spoiler</summary><div>", "<div class=\"bbCodeBlock bbCodeBlock--spoiler\">\n<div class=\"bbCodeBlock-content\">")
                             .Replace("</div></details>", "</div>\n</div>");
-                        html = Regex.Replace(html, "\tid=\"js-post-(\\d+)\"", "\tdata-content=\"post-$1\"\n\t\tid=\"js-post-$1\"");
+                        // The author on the article tag, the date with data-date (both until 2026-11-25)
+                        html = Regex.Replace(html, "\tid=\"js-post-(\\d+)\" itemscope[^\n]*\n\t\t\t<h4 class=\"message-name\">.*?<span itemprop=\"name\">([^<]*)</span>.*?</h4>",
+                            "\tdata-author=\"$2\"\n\t\tdata-content=\"post-$1\"\n\t\tid=\"js-post-$1\">");
+                        foreach (var post in thread.Pages[page - 1])
+                        {
+                            html = html.Replace(SmogonHtml.Time("", post.Date), SmogonHtml.TimeUntil2026_11_25("", post.Date));
+                        }
+                        Assert.That(html, Does.Not.Contain("message-name").And.Not.Contain("<dynamic-time"));
                         _http.Html(SmogonHtml.PageUrl(thread.Url, page), html);
                     }
                 }
             });
 
             Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
-            Assert.That(teams.Single(t => t.TeamString.StartsWith("MonB2")).URL, Is.EqualTo(_b.Url + "page-2#post-22"));
+            var b2 = teams.Single(t => t.TeamString.StartsWith("MonB2"));
+            Assert.That(b2.URL, Is.EqualTo(_b.Url + "page-2#post-22"));
+            Assert.That(b2.PostedBy, Is.EqualTo("Tester"));
+            Assert.That(b2.PostDate, Is.EqualTo(Old.AddHours(4)));
         }
 
         [Test]
@@ -210,6 +237,27 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "B3", "C1" }));
         }
 
+        [TestCase("author")]
+        [TestCase("date")]
+        public async Task PostWithATeam_WhoseAuthorOrDateCannotBeRead_StopsTheCrawl_AndKeepsTheStoredPage(string unreadable)
+        {
+            await Crawl();
+            var b2 = _b.Pages[1][0];
+            _b.AddPage(new FakePost(23, Old.AddDays(10), "B3"));
+            // A post whose author or date the parser does not find, as the posts of 2026-11-26 for the parser before
+            var page = SmogonHtml.ThreadPage(_b, 2);
+            page = unreadable == "author"
+                ? Regex.Replace(page, "\t\t\t<h4 class=\"message-name\">.*</h4>\n", "")
+                : page.Replace($" title=\"{SmogonHtml.DisplayDate(b2.Date)}\"", "");
+            Assert.That(page, Is.Not.EqualTo(SmogonHtml.ThreadPage(_b, 2)));
+
+            var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => Crawl(afterPublish: () => _http.Html(_b.Url + "page-2", page)));
+
+            Assert.That(stop!.Url, Is.EqualTo(_b.Url + "page-2"));
+            var stored = JsonConvert.DeserializeObject<ThreadCrawlState>(_cache.GetString("stc:v3:thread:2")!)!;
+            Assert.That(stored.Pages[2].Teams.Select(team => (team.PostedBy, team.PostDate)), Is.EqualTo(new[] { ("Tester", Old.AddHours(4)) }));
+        }
+
         [Test]
         public void BotCheck_OnTheListing_StopsTheCrawl()
         {
@@ -222,6 +270,21 @@ namespace SmogonTeamCrawler.Tests
         {
             Assert.ThrowsAsync<UnexpectedPageException>(() =>
                 Crawl(afterPublish: () => _http.Html(ForumUrl, "<html><body>Maintenance</body></html>")));
+        }
+
+        [Test]
+        public async Task ListingWithoutAReadableThread_StopsTheCrawl_AndKeepsTheKnownThreads()
+        {
+            await Crawl();
+            // The listing of 2026-11-26 with a date the parser cannot read, as for the parser before it
+            var unreadable = SavedPages.ForumListing.Replace("<dynamic-time timestamp=", "<dynamic-time ts=");
+
+            var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => Crawl(afterPublish: () => _http.Html(ForumUrl, unreadable)));
+
+            Assert.That(stop!.Url, Is.EqualTo(ForumUrl));
+            var teams = await Crawl();
+            Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl }));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
         }
 
         [Test]

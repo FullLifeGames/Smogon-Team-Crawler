@@ -4,10 +4,12 @@ using Newtonsoft.Json;
 using NUnit.Framework;
 using SmogonTeamCrawler.Core.Collector;
 using SmogonTeamCrawler.Core.Data;
+using SmogonTeamCrawler.Core.Util;
 using SmogonTeamCrawler.Tests.Fakes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -169,9 +171,21 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
-        public async Task FirstRun_SearchNotAvailable_WalksTheListing()
+        public void FirstRun_SearchAnsweredWithAnError_StopsTheCrawl()
         {
             _search.Unavailable = "<!DOCTYPE html><html data-template=\"error\"><body><div class=\"blockMessage\">The search could not be completed because the search keywords were too short, too long, or too common.</div></body></html>";
+
+            Assert.ThrowsAsync<UnexpectedPageException>(() => Crawl());
+
+            // The forum is not walked instead.
+            Assert.That(SearchRequests(), Has.Count.EqualTo(1));
+            Assert.That(_http.Requests, Does.Not.Contain(ForumUrl));
+        }
+
+        [Test]
+        public async Task FirstRun_SearchThatCannotBeLoaded_WalksTheListing()
+        {
+            _search.FailWith = HttpStatusCode.ServiceUnavailable;
 
             var teams = await Crawl();
 
@@ -282,11 +296,11 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
-        public async Task SearchNotAvailable_WalksTheListing_AndReadsOnlyThreadsWithNewPosts()
+        public async Task SearchThatCannotBeLoaded_WalksTheListing_AndReadsOnlyThreadsWithNewPosts()
         {
             await FirstRun();
             _b.AddPage(new FakePost(23, _recent, "B3", "https://pokepast.es/b3"));
-            _search.Unavailable = "<!DOCTYPE html><html data-template=\"error\"><body>You must be logged-in to do that.</body></html>";
+            _search.FailWith = HttpStatusCode.ServiceUnavailable;
 
             var teams = await Crawl();
 
@@ -374,6 +388,21 @@ namespace SmogonTeamCrawler.Tests
             await Crawl();
             Assert.That(OtherRequests(), Is.EqualTo(new[] { _b.Url + "page-3" }));
 
+            await Crawl();
+            Assert.That(OtherRequests(), Is.Empty);
+        }
+
+        [Test]
+        public async Task PageWithATeamWithoutAuthor_IsReadAgain_ThoughItsLikesAreNotDue()
+        {
+            await FirstRun();
+            // As the run of 2026-11-26 stored ten pages
+            UpdateThread(2, thread => thread.Pages[2].Teams.ForEach(team => team.PostedBy = ""));
+
+            var teams = await Crawl();
+
+            Assert.That(OtherRequests(), Is.EqualTo(new[] { _b.Url + "page-2" }));
+            Assert.That(teams.Single(t => t.TeamString.TrimStart().StartsWith("MonB2")).PostedBy, Is.EqualTo("Tester"));
             await Crawl();
             Assert.That(OtherRequests(), Is.Empty);
         }

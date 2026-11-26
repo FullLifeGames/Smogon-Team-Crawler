@@ -111,6 +111,8 @@ namespace SmogonTeamCrawler.Tests.Fakes
         public int MaxResults { get; set; } = 200;
         /// <summary>Served for every search instead of results.</summary>
         public string? Unavailable { get; set; }
+        /// <summary>The status every search fails with, as a search that cannot be loaded.</summary>
+        public HttpStatusCode? FailWith { get; set; }
         /// <summary>Posts the search does not find.</summary>
         public HashSet<long> NotIndexed { get; } = new();
         /// <summary>Positions shown instead of the real one, as after posts were deleted or restored.</summary>
@@ -123,6 +125,10 @@ namespace SmogonTeamCrawler.Tests.Fakes
             if (Unavailable != null)
             {
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Unavailable) };
+            }
+            if (FailWith != null)
+            {
+                return new HttpResponseMessage(FailWith.Value);
             }
             var query = url[(url.IndexOf('?') + 1)..].Split('&')
                 .Select(part => part.Split('=', 2))
@@ -270,7 +276,12 @@ namespace SmogonTeamCrawler.Tests.Fakes
 
         public static long Timestamp(DateTime date) => new DateTimeOffset(DateTime.SpecifyKind(date, DateTimeKind.Utc)).ToUnixTimeSeconds();
 
-        private static string Time(string cssClass, DateTime date) =>
+        /// <summary>A date as Smogon renders it since 2026-11-26: the timestamp is on the &lt;dynamic-time&gt; inside.</summary>
+        public static string Time(string cssClass, DateTime date) =>
+            $"<time  class=\"{cssClass}u-dt\" dir=\"auto\" datetime=\"{date:yyyy-MM-ddTHH:mm:ss}Z\" title=\"{DisplayDate(date)}\"><dynamic-time timestamp=\"{Timestamp(date)}\" date=\"{date.ToString("MMM d, yyyy", English)}\" time=\"{date.ToString("h:mm tt", English)}\">{DisplayDate(date)}</dynamic-time></time>";
+
+        /// <summary>A date as Smogon rendered it until 2026-11-25.</summary>
+        public static string TimeUntil2026_11_25(string cssClass, DateTime date) =>
             $"<time  class=\"{cssClass}u-dt\" dir=\"auto\" datetime=\"{date:yyyy-MM-ddTHH:mm:ss}Z\" data-timestamp=\"{Timestamp(date)}\" data-date=\"{date.ToString("MMM d, yyyy", English)}\" data-time=\"{date.ToString("h:mm tt", English)}\" data-short=\"1d\" title=\"{DisplayDate(date)}\">{DisplayDate(date)}</time>";
 
         private static string PageNav(string path, int pages, int current = 1)
@@ -348,8 +359,8 @@ namespace SmogonTeamCrawler.Tests.Fakes
             foreach (var post in thread.Pages[page - 1])
             {
                 html.Append(postTag + "\n");
-                html.Append($"\t\tdata-author=\"{post.Author}\"\n");
-                html.Append($"\t\tid=\"js-post-{post.Id}\">\n");
+                html.Append($"\t\tid=\"js-post-{post.Id}\" itemscope itemtype=\"https://schema.org/Comment\">\n");
+                html.Append($"\t\t\t<h4 class=\"message-name\"><member-tooltip user-id=\"1\"><a href=\"/forums/members/tester.1/\" class=\"username \" dir=\"auto\"><span itemprop=\"name\">{post.Author}</span></a></member-tooltip></h4>\n");
                 html.Append("\t<header class=\"message-attribution message-attribution--split\">\n");
                 html.Append("\t\t<ul class=\"message-attribution-main listInline \">\n\t\t\t<li class=\"u-concealed\">\n");
                 html.Append($"\t\t\t\t<a href=\"{threadPath}post-{post.Id}\" rel=\"nofollow\" >\n");
@@ -379,6 +390,11 @@ namespace SmogonTeamCrawler.Tests.Fakes
         {
             var html = new StringBuilder();
             html.Append("<!DOCTYPE html>\n<html id=\"forum\" lang=\"en-US\"\n\tdata-app=\"public\"\n\tdata-cookie-prefix=\"forum_\"\n\tclass=\"template-search_results\">\n<body>\n");
+            if (!results.Any())
+            {
+                html.Append("<div class=\"block-container\">\n\t<div class=\"block-body\">\n\t\t<div class=\"blockMessage\">\n\t\t\tNo results found.\n\t\t</div>\n\t</div>\n</div>\n</body>\n</html>\n");
+                return html.ToString();
+            }
             html.Append("<div class=\"block-container\">\n\t<ol class=\"block-body\">\n");
             foreach (var result in results)
             {

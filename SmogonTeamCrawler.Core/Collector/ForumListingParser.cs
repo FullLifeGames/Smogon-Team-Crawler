@@ -22,11 +22,9 @@ namespace SmogonTeamCrawler.Core.Collector
         [GeneratedRegex("<span class=\"label[^\"]*\"[^>]*>(.*?)</span>", RegexOptions.Singleline)]
         private static partial Regex PrefixRegex();
 
-        [GeneratedRegex("<time\\s+class=\"structItem-latestDate[^\"]*\"([^>]*)>")]
+        // With the <dynamic-time> inside it, which holds the timestamp since 2026-11-26
+        [GeneratedRegex("<time\\s+class=\"structItem-latestDate[^\"]*\"([^>]*)>(?:\\s*<dynamic-time\\s[^>]*>)?")]
         private static partial Regex LatestDateRegex();
-
-        [GeneratedRegex("data-timestamp=\"(\\d+)\"")]
-        private static partial Regex TimestampRegex();
 
         [GeneratedRegex("title=\"([^\"]*)\"")]
         private static partial Regex TitleAttributeRegex();
@@ -64,8 +62,8 @@ namespace SmogonTeamCrawler.Core.Collector
             {
                 return null;
             }
-            var timestamp = TimestampRegex().Match(latest.Groups[1].Value);
-            if (!timestamp.Success)
+            var timestamp = SmogonPages.GetTimestamp(latest.Value);
+            if (timestamp == null)
             {
                 return null;
             }
@@ -102,7 +100,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 Url = Common.SMOGON_URL + preview.Groups[1].Value,
                 Prefix = prefix,
                 Sticky = block.Contains("structItem-status--sticky"),
-                LatestPostTimestamp = long.Parse(timestamp.Groups[1].Value),
+                LatestPostTimestamp = timestamp.Value,
                 LatestPostDisplayDate = displayDate.Success ? WebUtility.HtmlDecode(displayDate.Groups[1].Value) : "",
                 LastPage = lastPage,
             };
