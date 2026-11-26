@@ -9,7 +9,7 @@
 	<RepositoryUrl>https://github.com/FullLifeGames/Smogon-Team-Crawler</RepositoryUrl>
 	<PackageTags>Smogon Pokémon Team Crawler</PackageTags>
 	<RepositoryType>GitHub</RepositoryType>
-	<PackageVersion>3.0.0</PackageVersion>
+	<PackageVersion>3.1.0</PackageVersion>
 	<Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
