@@ -234,11 +234,13 @@ namespace SmogonTeamCrawler.Tests
             await Crawl();
             var b2 = _b.Pages[1][0];
             _b.AddPage(new FakePost(23, Old.AddDays(10), "B3"));
-            // As the parser saw the posts of 2026-11-26: teams without author, and the time of reading as post date
+            // As the parser saw the posts of 2026-11-26: teams without author, and the time of reading as post date. The
+            // author stays on the page, where the parser does not look for it (on the line that opens the post).
             var page = SmogonHtml.ThreadPage(_b, 2);
             page = unreadable == "author"
-                ? page.Replace("\t\tdata-author=\"Tester\"\n", "")
+                ? page.Replace(SmogonHtml.PostTag + "\n\t\tdata-author=\"Tester\"\n", SmogonHtml.PostTag + " data-author=\"Tester\"\n")
                 : page.Replace(SmogonHtml.TimeUntil2026_11_25("", b2.Date), SmogonHtml.Time("", b2.Date));
+            Assert.That(page, Is.Not.EqualTo(SmogonHtml.ThreadPage(_b, 2)));
 
             var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => Crawl(afterPublish: () => _http.Html(_b.Url + "page-2", page)));
 
