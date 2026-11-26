@@ -13,6 +13,12 @@ namespace SmogonTeamCrawler.Tests.Fakes
         /// </summary>
         public static string SearchResults => Read("search-results-2026-11-26.html");
 
+        /// <summary>
+        /// The same search in National Dex UU (859), newer than the moment of the request, loaded on 2026-11-26: Smogon's page for
+        /// a search without results.
+        /// </summary>
+        public static string SearchNoResults => Read("search-no-results-2026-11-26.html");
+
         /// <summary>Page 1 of the Tournaments forum (34), loaded on 2026-11-26.</summary>
         public static string ForumListing => Read("forum-listing-2026-11-26.html");
 

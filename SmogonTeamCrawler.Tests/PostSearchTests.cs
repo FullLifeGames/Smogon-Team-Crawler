@@ -201,23 +201,26 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(await search.SearchAsync(new[] { CollectorOptions.PasteQuery }, new long[] { 726 }, null), Is.Null);
         }
 
-        /// <summary>
-        /// The page of 2026-11-26 as Smogon answers a search without results: seen in a div in the markup of 2026-11-13, not yet
-        /// since. Smogon has turned other divs of the class into elements of its own, as &lt;browser-warning&gt;.
-        /// </summary>
-        private static string NoResultsPage(string element = "div") => Regex.Replace(SavedPages.SearchResults, "<ol class=\"block-body\">.*?</ol>",
-            $"<div class=\"block-body\">\n\t\t\t<{element} class=\"blockMessage\">\n\t\t\t\tNo results found.\n\t\t\t</{element}>\n\t\t</div>", RegexOptions.Singleline);
-
-        [TestCase("div")]
-        [TestCase("block-message")]
-        public async Task Search_ReadsTheResultsOf2026_11_26_AndAPageWithoutResults(string element)
+        [Test]
+        public async Task Search_ReadsTheResultsOf2026_11_26_AndAPageWithoutResults()
         {
-            var search = new PostSearch(url => Task.FromResult(url.Contains("hastebin") ? SavedPages.SearchResults : NoResultsPage(element)));
+            var search = new PostSearch(url => Task.FromResult(url.Contains("hastebin") ? SavedPages.SearchResults : SavedPages.SearchNoResults));
 
             var result = await search.SearchAsync(new[] { CollectorOptions.PasteQuery, CollectorOptions.TypedTeamQuery }, new long[] { 726, 859 }, new DateTime(2026, 11, 24));
 
-            Assert.That(NoResultsPage(element), Does.Not.Contain("block-row--separated"));
+            Assert.That(SearchResultParser.IsNoResults(SavedPages.SearchNoResults), Is.True);
+            Assert.That(SearchResultParser.IsNoResults(SavedPages.SearchResults), Is.False);
             Assert.That(result!.Hits.Select(hit => hit.PostId), Is.EquivalentTo(new long?[] { 11201487, 11201488 }));
+        }
+
+        [Test]
+        public void Search_StopsAtAPageWithoutResults_ThatSaysSomethingElse()
+        {
+            var other = SavedPages.SearchNoResults.Replace("No results found.", "Something went wrong. Please try again later.");
+            Assert.That(other, Is.Not.EqualTo(SavedPages.SearchNoResults));
+            var search = new PostSearch(_ => Task.FromResult(other));
+
+            Assert.ThrowsAsync<UnexpectedPageException>(() => search.SearchAsync(new[] { "pokepast.es" }, new long[] { 859 }, null));
         }
 
         [Test]

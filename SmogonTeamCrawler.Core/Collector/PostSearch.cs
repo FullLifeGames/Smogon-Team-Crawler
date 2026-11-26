@@ -230,11 +230,8 @@ namespace SmogonTeamCrawler.Core.Collector
         [GeneratedRegex("<a href=\"([^\"]+)\" class=\"pageNav-jump pageNav-jump--next\"")]
         private static partial Regex NextPageRegex();
 
-        /// <summary>
-        /// Seen as &lt;div class="blockMessage"&gt; in the markup of 2026-11-13. Any element: since 2026-11-24 Smogon turns some
-        /// of them into elements of its own, such as &lt;browser-warning class="blockMessage …"&gt;.
-        /// </summary>
-        [GeneratedRegex("<[\\w-]+ class=\"blockMessage[^\"]*\"[^>]*>\\s*No results found\\.\\s*</[\\w-]+>")]
+        /// <summary>The block of the results page in place of the results, the same on 2026-11-13 and 2026-11-26.</summary>
+        [GeneratedRegex("<div class=\"block-body\">\\s*<div class=\"blockMessage\">\\s*No results found\\.\\s*</div>\\s*</div>")]
         private static partial Regex NoResultsRegex();
 
         /// <summary>Whether the page is Smogon's answer to a search without results.</summary>
