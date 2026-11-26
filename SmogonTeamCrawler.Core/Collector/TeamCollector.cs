@@ -400,8 +400,15 @@ namespace SmogonTeamCrawler.Core.Collector
                     forum.NodeId = SmogonPages.GetNodeId(site) ?? forum.NodeId;
                 }
 
+                var items = ForumListingParser.Parse(site);
+                if (items.Count == 0)
+                {
+                    // A complete walk takes the threads it does not list for deleted: on 2026-11-26, when no listing
+                    // could be read, the walked forums lost all their threads.
+                    throw new UnexpectedPageException(pageUrl, "no thread could be read from the forum listing");
+                }
                 var reachedKnownThreads = false;
-                foreach (var item in ForumListingParser.Parse(site))
+                foreach (var item in items)
                 {
                     listed.Add(item);
                     newWatermark = Math.Max(newWatermark, item.LatestPostTimestamp);

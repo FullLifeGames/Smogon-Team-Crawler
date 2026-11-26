@@ -225,6 +225,21 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public async Task ListingWithoutAReadableThread_StopsTheCrawl_AndKeepsTheKnownThreads()
+        {
+            await Crawl();
+            // The listing of 2026-11-26 with a date the parser cannot read, as for the parser before it
+            var unreadable = SavedPages.ForumListing.Replace("<dynamic-time timestamp=", "<dynamic-time ts=");
+
+            var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => Crawl(afterPublish: () => _http.Html(ForumUrl, unreadable)));
+
+            Assert.That(stop!.Url, Is.EqualTo(ForumUrl));
+            var teams = await Crawl();
+            Assert.That(_http.Requests, Is.EqualTo(new[] { ForumUrl }));
+            Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "C1" }));
+        }
+
+        [Test]
         public async Task UnexpectedThreadPage_SkipsOnlyThatThread_AndRetriesItNextRun()
         {
             var teams = await Crawl(afterPublish: () => _http.Html(_c.Url, "<html><body>Something else</body></html>"));
