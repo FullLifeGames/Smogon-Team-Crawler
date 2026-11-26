@@ -1,9 +1,12 @@
 #nullable enable
 using NUnit.Framework;
 using SmogonTeamCrawler.Core.Collector;
+using SmogonTeamCrawler.Core.Util;
+using SmogonTeamCrawler.Tests.Fakes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace SmogonTeamCrawler.Tests
@@ -103,6 +106,21 @@ namespace SmogonTeamCrawler.Tests
                     new DateTime(2026, 11, 9, 21, 0, 0, DateTimeKind.Utc), "https://www.smogon.com/forums/forums/overused.726/", ""),
             }));
             Assert.That(hits.Select(hit => hit.Page), Is.EqualTo(new[] { 49, 1, 1 }));
+        }
+
+        [Test]
+        public void Parse_ReadsTheResultsOf2026_11_26()
+        {
+            var hits = SearchResultParser.Parse(SavedPages.SearchResults, out var next);
+
+            Assert.That(next, Is.Null);
+            Assert.That(hits, Is.EqualTo(new[]
+            {
+                new SearchHit(3712239, "https://www.smogon.com/forums/threads/national-dex-uu-team-bazaar.3712239/", 11201488, 103,
+                    new DateTime(2026, 11, 24, 6, 31, 14, DateTimeKind.Utc), "https://www.smogon.com/forums/forums/national-dex-uu.859/", "Projects"),
+                new SearchHit(3732644, "https://www.smogon.com/forums/threads/sv-ou-metagame-discussion-v4.3732644/", 11201487, 22242,
+                    new DateTime(2026, 11, 24, 6, 30, 21, DateTimeKind.Utc), "https://www.smogon.com/forums/forums/overused.726/", "Metagame"),
+            }));
         }
 
         [Test]

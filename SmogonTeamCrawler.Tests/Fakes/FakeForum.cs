@@ -270,7 +270,12 @@ namespace SmogonTeamCrawler.Tests.Fakes
 
         public static long Timestamp(DateTime date) => new DateTimeOffset(DateTime.SpecifyKind(date, DateTimeKind.Utc)).ToUnixTimeSeconds();
 
-        private static string Time(string cssClass, DateTime date) =>
+        /// <summary>A date as Smogon renders it since 2026-11-26: the timestamp is on the &lt;dynamic-time&gt; inside.</summary>
+        public static string Time(string cssClass, DateTime date) =>
+            $"<time  class=\"{cssClass}u-dt\" dir=\"auto\" datetime=\"{date:yyyy-MM-ddTHH:mm:ss}Z\" title=\"{DisplayDate(date)}\"><dynamic-time timestamp=\"{Timestamp(date)}\" date=\"{date.ToString("MMM d, yyyy", English)}\" time=\"{date.ToString("h:mm tt", English)}\">{DisplayDate(date)}</dynamic-time></time>";
+
+        /// <summary>A date as Smogon rendered it until 2026-11-25.</summary>
+        public static string TimeUntil2026_11_25(string cssClass, DateTime date) =>
             $"<time  class=\"{cssClass}u-dt\" dir=\"auto\" datetime=\"{date:yyyy-MM-ddTHH:mm:ss}Z\" data-timestamp=\"{Timestamp(date)}\" data-date=\"{date.ToString("MMM d, yyyy", English)}\" data-time=\"{date.ToString("h:mm tt", English)}\" data-short=\"1d\" title=\"{DisplayDate(date)}\">{DisplayDate(date)}</time>";
 
         private static string PageNav(string path, int pages, int current = 1)
@@ -353,7 +358,7 @@ namespace SmogonTeamCrawler.Tests.Fakes
                 html.Append("\t<header class=\"message-attribution message-attribution--split\">\n");
                 html.Append("\t\t<ul class=\"message-attribution-main listInline \">\n\t\t\t<li class=\"u-concealed\">\n");
                 html.Append($"\t\t\t\t<a href=\"{threadPath}post-{post.Id}\" rel=\"nofollow\" >\n");
-                html.Append($"\t\t\t\t\t{Time("", post.Date)}\n");
+                html.Append($"\t\t\t\t\t{TimeUntil2026_11_25("", post.Date)}\n");
                 html.Append("\t\t\t\t</a>\n\t\t\t</li>\n\t\t</ul>\n\t</header>\n");
                 html.Append("\t<div class=\"message-content js-messageContent\">\n\t\t<article class=\"message-body js-selectToQuote\">\n");
                 html.Append($"<div class=\"bbWrapper\">{post.Text ?? "Post text"}<br />\n");

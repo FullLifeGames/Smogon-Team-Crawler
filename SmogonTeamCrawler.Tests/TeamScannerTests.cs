@@ -233,6 +233,39 @@ namespace SmogonTeamCrawler.Tests
         }
 
         [Test]
+        public void Parse_ReadsTheListingOf2026_11_26()
+        {
+            var html = SavedPages.ForumListing;
+
+            var items = ForumListingParser.Parse(html);
+
+            // 52 rows, one of them a redirect
+            Assert.That(items, Has.Count.EqualTo(51));
+            Assert.That(items.Count(item => item.Sticky), Is.EqualTo(12));
+            Assert.That(items[1].Prefix, Is.EqualTo("Announcement"));
+            var thread = items.Single(item => item.ThreadId == 3781440);
+            Assert.That(thread.Url, Is.EqualTo("https://www.smogon.com/forums/threads/fakee-cup-signups.3781440/"));
+            Assert.That(thread.LatestPostTimestamp, Is.EqualTo(1777217381));
+            Assert.That(thread.LatestPostDisplayDate, Is.EqualTo("Apr 26, 2026 at 11:29 AM"));
+            Assert.That(thread.LastPage, Is.EqualTo(8));
+            Assert.That(SmogonPages.GetNumberOfPages(html), Is.EqualTo(2));
+            Assert.That(SmogonPages.GetNodeId(html), Is.EqualTo(34));
+        }
+
+        [Test]
+        public void Parse_ReadsTheLatestPostUntil2026_11_25()
+        {
+            var date = new System.DateTime(2026, 11, 8, 13, 35, 0);
+            var forum = new FakeForum("https://www.smogon.com/forums/forums/sv-ou-teams.748/");
+            forum.AddThread(11).AddPage(new FakePost(2, date));
+            var html = SmogonHtml.Listing("/forums/forums/sv-ou-teams.748/", 1, 1, forum.Threads, forum.NodeId)
+                .Replace(SmogonHtml.Time("structItem-latestDate ", date), SmogonHtml.TimeUntil2026_11_25("structItem-latestDate ", date));
+
+            Assert.That(html, Does.Not.Contain("<dynamic-time"));
+            Assert.That(ForumListingParser.Parse(html).Single().LatestPostTimestamp, Is.EqualTo(SmogonHtml.Timestamp(date)));
+        }
+
+        [Test]
         public void GetNumberOfPages_WithoutPageNav_IsOne()
         {
             Assert.That(SmogonPages.GetNumberOfPages("<html data-template=\"forum_view\"></html>"), Is.EqualTo(1));

@@ -210,8 +210,9 @@ namespace SmogonTeamCrawler.Core.Collector
         [GeneratedRegex("<li>Post #([\\d,.]+)</li>")]
         private static partial Regex PositionRegex();
 
-        [GeneratedRegex("<time\\s[^>]*data-timestamp=\"(\\d+)\"")]
-        private static partial Regex TimestampRegex();
+        // With the <dynamic-time> inside it, which holds the timestamp since 2026-11-26
+        [GeneratedRegex("<time\\s[^>]*>(?:\\s*<dynamic-time\\s[^>]*>)?")]
+        private static partial Regex TimeRegex();
 
         // Forums without node ID in their URL (".../forums/gen1/") too
         [GeneratedRegex("Forum: <a href=\"(/forums/forums/[^\"]+/)\"")]
@@ -243,9 +244,9 @@ namespace SmogonTeamCrawler.Core.Collector
         private static SearchHit? ParseItem(string block)
         {
             var title = TitleRegex().Match(block);
-            var timestamp = TimestampRegex().Match(block);
+            var timestamp = SmogonPages.GetTimestamp(TimeRegex().Match(block).Value);
             var forum = ForumRegex().Match(block);
-            if (!title.Success || !timestamp.Success || !forum.Success)
+            if (!title.Success || timestamp == null || !forum.Success)
             {
                 return null;
             }
@@ -264,7 +265,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 ThreadUrl: Common.SMOGON_URL + title.Groups[1].Value,
                 PostId: postId,
                 Position: position,
-                PostDate: DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestamp.Groups[1].Value)).UtcDateTime,
+                PostDate: DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).UtcDateTime,
                 ForumUrl: Common.SMOGON_URL + WebUtility.HtmlDecode(forum.Groups[1].Value),
                 Prefix: prefix.Success ? WebUtility.HtmlDecode(prefix.Groups[1].Value).Trim() : "");
         }
