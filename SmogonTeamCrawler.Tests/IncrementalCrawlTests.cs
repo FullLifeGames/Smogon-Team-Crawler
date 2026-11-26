@@ -227,6 +227,26 @@ namespace SmogonTeamCrawler.Tests
             Assert.That(Tags(teams), Is.EqualTo(new[] { "A1", "B1", "B2", "B3", "C1" }));
         }
 
+        [TestCase("author")]
+        [TestCase("date")]
+        public async Task PostWithATeam_WhoseAuthorOrDateCannotBeRead_StopsTheCrawl_AndKeepsTheStoredPage(string unreadable)
+        {
+            await Crawl();
+            var b2 = _b.Pages[1][0];
+            _b.AddPage(new FakePost(23, Old.AddDays(10), "B3"));
+            // As the parser saw the posts of 2026-11-26: teams without author, and the time of reading as post date
+            var page = SmogonHtml.ThreadPage(_b, 2);
+            page = unreadable == "author"
+                ? page.Replace("\t\tdata-author=\"Tester\"\n", "")
+                : page.Replace(SmogonHtml.TimeUntil2026_11_25("", b2.Date), SmogonHtml.Time("", b2.Date));
+
+            var stop = Assert.ThrowsAsync<UnexpectedPageException>(() => Crawl(afterPublish: () => _http.Html(_b.Url + "page-2", page)));
+
+            Assert.That(stop!.Url, Is.EqualTo(_b.Url + "page-2"));
+            var stored = JsonConvert.DeserializeObject<ThreadCrawlState>(_cache.GetString("stc:v3:thread:2")!)!;
+            Assert.That(stored.Pages[2].Teams.Select(team => (team.PostedBy, team.PostDate)), Is.EqualTo(new[] { ("Tester", Old.AddHours(4)) }));
+        }
+
         [Test]
         public void BotCheck_OnTheListing_StopsTheCrawl()
         {

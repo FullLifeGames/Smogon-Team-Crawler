@@ -11,6 +11,10 @@ namespace SmogonTeamCrawler.Core.Data
         public bool PostStarted { get; set; }
         public int PostLikes { get; set; }
         public DateTime PostDate { get; set; } = DateTime.Now;
+        /// <summary>Whether <see cref="PostDate"/> was read from the current post.</summary>
+        public bool PostDateRead { get; set; }
+        /// <summary>The link of the first post with a team whose author or date could not be read.</summary>
+        public string? UnreadablePost { get; set; }
         public DateTime NewestPostDate { get; set; } = DateTime.MinValue;
         public string PostedBy { get; set; } = "";
         public string LastLine { get; set; } = "";

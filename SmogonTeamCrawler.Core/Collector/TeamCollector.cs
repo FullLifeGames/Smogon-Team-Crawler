@@ -986,6 +986,11 @@ namespace SmogonTeamCrawler.Core.Collector
             {
                 await HandleLine(url, collectedTeams, pageCount, currentTeams, line, prefix, lineDataHandler).ConfigureAwait(false);
             }
+            if (lineDataHandler.UnreadablePost != null)
+            {
+                // Stored, the page would replace its teams: on 2026-11-26 ten pages lost the authors and dates of 133 teams.
+                throw new UnexpectedPageException(SmogonPages.PageUrl(url, pageCount), $"the author or the date of {lineDataHandler.UnreadablePost}, a post with a team, could not be read");
+            }
             return lineDataHandler;
         }
 
@@ -998,6 +1003,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 if (SmogonPages.IsPostStart(line))
                 {
                     lineDataHandler.PostStarted = true;
+                    lineDataHandler.PostDateRead = false;
                 }
             }
             else if (line.Contains("data-author=\""))
@@ -1024,6 +1030,10 @@ namespace SmogonTeamCrawler.Core.Collector
                 }
                 lineDataHandler.PostHtml.Clear();
                 lineDataHandler.PostMayHaveSets = false;
+                if (currentTeams.Count > 0 && (lineDataHandler.PostedBy.Length == 0 || !lineDataHandler.PostDateRead))
+                {
+                    lineDataHandler.UnreadablePost ??= lineDataHandler.PostLink;
+                }
                 foreach (var team in currentTeams)
                 {
                     var tmpTeam = team;
@@ -1112,6 +1122,7 @@ namespace SmogonTeamCrawler.Core.Collector
                 temp = temp[..temp.IndexOf("\"")];
                 temp = temp.Replace("at ", "");
                 lineDataHandler.PostDate = DateTime.ParseExact(temp, "MMM d, yyyy h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+                lineDataHandler.PostDateRead = true;
                 if (lineDataHandler.PostDate > lineDataHandler.NewestPostDate)
                 {
                     lineDataHandler.NewestPostDate = lineDataHandler.PostDate;
